@@ -1,0 +1,6 @@
+PySide6>=6.11
+flask>=3.1
+pyperclip>=1.11
+requests>=2.34
+rapidocr-onnxruntime>=1.2
+Pillow>=12.0

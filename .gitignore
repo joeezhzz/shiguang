@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# 运行时数据（用户隐私，绝不上传）
+data/
+
+# 日志
+*.log
+
+# 验证产物（demo 截图）
+demo/*.png
