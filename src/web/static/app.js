@@ -236,7 +236,7 @@ function openModal(id) {
   const dl = daysLeft(c.due_date);
   const dueTxt = dl === null ? "无" : (dl < 0 ? `${-dl} 天前已到期` : (dl === 0 ? "今天到期" : `剩 ${dl} 天`));
   const img = c.kind === "image" && c.media_path
-    ? `<img src="/media/${c.media_path.replace(/^media[\\/]/, "")}" alt="media">` : "";
+    ? `<img class="zoomable" src="/media/${c.media_path.replace(/^media[\\/]/, "")}" alt="media" title="点击放大">` : "";
   const file = c.kind === "file" && c.media_path
     ? `<div class="kv"><span>文件</span><span>${esc(c.media_path)}</span></div>` : "";
   const branchesHtml = renderBranches(c);
@@ -259,9 +259,21 @@ function openModal(id) {
     ${c.note ? `<div class="kv"><span>备注</span><span>${esc(c.note)}</span></div>` : ""}`;
   $("m-status").innerHTML = STATUSES.map((s) => `<option ${s === c.status ? "selected" : ""}>${s}</option>`).join("");
   $("modal").classList.remove("hidden");
+  // 图片点击放大
+  const imgEl = $("m-body").querySelector("img.zoomable");
+  if (imgEl) imgEl.onclick = () => openLightbox(imgEl.src);
 }
 
 function closeModal() { $("modal").classList.add("hidden"); state.current = null; }
+
+/* 图片放大预览 */
+function openLightbox(src) {
+  $("lightbox-img").src = src;
+  $("lightbox").classList.remove("hidden");
+}
+function closeLightbox() {
+  $("lightbox").classList.add("hidden");
+}
 
 async function patchCurrent(fields) {
   const c = state.current;
@@ -285,6 +297,7 @@ function bind() {
   $("sw-topic").onclick = () => { state.mode = "topic"; state.view = "board"; syncSwitch(); render(); };
   $("sw-calendar").onclick = () => { state.view = "calendar"; syncSwitch(); render(); };
   $("m-close").onclick = closeModal;
+  $("lightbox").onclick = closeLightbox;
   $("m-edit").onclick = () => { if (editing) openModal(state.current.id); else editModal(); };
   $("modal").addEventListener("click", (e) => { if (e.target.id === "modal") closeModal(); });
   $("m-status").addEventListener("change", (e) => patchCurrent({ status: e.target.value }));

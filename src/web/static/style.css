@@ -84,6 +84,12 @@ select {
 /* 弹窗 */
 .modal { position: fixed; inset: 0; background: rgba(20,24,40,.45); display: flex; align-items: center; justify-content: center; z-index: 100; }
 .modal.hidden { display: none; }
+
+/* 图片放大预览（lightbox） */
+.lightbox { position: fixed; inset: 0; background: rgba(10,12,20,.88); display: flex; align-items: center; justify-content: center; z-index: 300; cursor: zoom-out; }
+.lightbox.hidden { display: none; }
+.lightbox img { max-width: 92vw; max-height: 92vh; object-fit: contain; border-radius: 4px; box-shadow: 0 8px 40px rgba(0,0,0,.55); }
+.modal-body img.zoomable { cursor: zoom-in; }
 .modal-box { background: #fff; border-radius: 14px; width: 460px; max-width: 92vw; max-height: 84vh; display: flex; flex-direction: column; }
 .modal-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border); }
 .modal-head button { border: none; background: none; font-size: 16px; color: var(--muted); cursor: pointer; }
