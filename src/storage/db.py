@@ -48,7 +48,8 @@ def init_db():
                     topic TEXT DEFAULT '其他',
                     priority TEXT DEFAULT '中',
                     period TEXT DEFAULT '永久参考',
-                    due_date TEXT,                           -- YYYY-MM-DD
+                    due_date TEXT,                           -- YYYY-MM-DD 截止日期
+                    cal_date TEXT,                           -- YYYY-MM-DD 手动日历日期
                     status TEXT DEFAULT '待处理',
                     ocr_text TEXT,                           -- 图片 OCR 结果
                     note TEXT,
@@ -61,7 +62,7 @@ def init_db():
             )
             # 兼容旧表：补齐新增列
             cols = [r[1] for r in conn.execute("PRAGMA table_info(cards)")]
-            for col in ("tags", "main_point", "branches"):
+            for col in ("tags", "main_point", "branches", "cal_date"):
                 if col not in cols:
                     conn.execute(f"ALTER TABLE cards ADD COLUMN {col} TEXT")
             for col in ("topic", "priority", "status", "due_date"):
@@ -93,19 +94,19 @@ def media_abs_path(rel_path):
 
 def create_card(kind="text", content="", media_path=None, source="手动",
                 topic="其他", priority="中", period="永久参考",
-                due_date=None, status="待处理", ocr_text=None, note=None, tags=None,
-                main_point=None, branches=None):
+                due_date=None, cal_date=None, status="待处理", ocr_text=None,
+                note=None, tags=None, main_point=None, branches=None):
     with _lock:
         conn = _conn()
         try:
             now = _now()
             cur = conn.execute(
                 """INSERT INTO cards (kind, content, media_path, source, topic,
-                   priority, period, due_date, status, ocr_text, note, tags,
+                   priority, period, due_date, cal_date, status, ocr_text, note, tags,
                    main_point, branches, created_at, updated_at)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (kind, content, media_path, source, topic, priority,
-                 period, due_date, status, ocr_text, note, tags,
+                 period, due_date, cal_date, status, ocr_text, note, tags,
                  main_point, branches, now, now),
             )
             conn.commit()
@@ -153,7 +154,7 @@ def list_cards(topic=None, priority=None, status=None, period=None, q=None):
 def update_card(card_id, **fields):
     """更新指定字段（白名单），返回是否成功"""
     allowed = {"content", "source", "topic", "priority", "period",
-               "due_date", "status", "ocr_text", "note", "tags",
+               "due_date", "cal_date", "status", "ocr_text", "note", "tags",
                "main_point", "branches"}
     keys = [k for k in fields if k in allowed]
     if not keys:

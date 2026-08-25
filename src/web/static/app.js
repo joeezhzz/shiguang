@@ -78,7 +78,8 @@ function esc(s) {
 
 /* ---------- 看板渲染 ---------- */
 function renderBoard(list) {
-  const groups = state.mode === "status" ? STATUSES : TOPICS;
+  // 状态列固定 4 列；主题列用动态主题列表（内置 + 自定义）
+  const groups = state.mode === "status" ? STATUSES : (topicList.length ? topicList : TOPICS);
   const by = {};
   groups.forEach((g) => (by[g] = []));
   list.forEach((c) => {
@@ -97,8 +98,9 @@ function renderCalendar(list) {
   const y = now.getFullYear(), m = now.getMonth();
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const byDue = {};
-  list.filter((c) => c.due_date).forEach((c) => {
-    (byDue[c.due_date] = byDue[c.due_date] || []).push(c);
+  list.forEach((c) => {
+    if (c.due_date) (byDue[c.due_date] = byDue[c.due_date] || []).push(c);
+    if (c.cal_date) (byDue[c.cal_date] = byDue[c.cal_date] || []).push(Object.assign({}, c, { _cal: true }));
   });
   const first = new Date(y, m, 1);
   const startWeekday = (first.getDay() + 6) % 7; // 周一开头
@@ -113,7 +115,8 @@ function renderCalendar(list) {
     const chips = (byDue[iso] || []).map((c) => {
       const dl = daysLeft(c.due_date);
       const cls = dl !== null && dl < 0 ? "overdue" : "";
-      return `<div class="cal-chip ${cls}" data-id="${c.id}">${esc((c.content || "").split("\n")[0].slice(0, 14))}</div>`;
+      const tag = c._cal ? "📌 " : "";
+      return `<div class="cal-chip ${cls}" data-id="${c.id}">${tag}${esc((c.content || "").split("\n")[0].slice(0, 14))}</div>`;
     }).join("");
     cells.push(`<div class="cal-cell ${wd === 0 || wd === 6 ? "weekend" : ""} ${isToday ? "today" : ""}">
       <div class="day">${d}</div>${chips}</div>`);
@@ -171,6 +174,12 @@ let topicList = [];
 async function loadTopics() {
   const r = await fetch("/api/topics");
   topicList = await r.json();
+  // 同步刷新主题过滤器下拉（含自定义主题），保持当前选中
+  const cur = $("f-topic").value;
+  $("f-topic").innerHTML = `<option value="">全部主题</option>`
+    + topicList.map((t) => `<option>${t}</option>`).join("");
+  $("f-topic").value = cur;
+  render();  // 主题列模式需要动态主题列表（自定义主题才有自己的列）
 }
 
 function editModal() {
@@ -185,6 +194,8 @@ function editModal() {
       <datalist id="sg-topics">${topicList.map((t) => `<option value="${esc(t)}">`).join("")}</datalist></div>
     <div class="kv"><span>重要度</span><select id="e-priority">${opts(c.priority, PRIORITIES)}</select></div>
     <div class="kv"><span>效用期</span><select id="e-period">${opts(c.period, PERIODS)}</select></div>
+    <div class="kv"><span>截止日期</span><input id="e-due" type="date" value="${esc(c.due_date || "")}"></div>
+    <div class="kv"><span>日历日期</span><input id="e-cal" type="date" value="${esc(c.cal_date || "")}"></div>
     <div class="kv"><span>备注</span><textarea id="e-note" rows="3">${esc(c.note || "")}</textarea></div>
     <div class="edit-actions">
       <button id="e-save">💾 保存修改</button>
@@ -201,6 +212,8 @@ async function saveEdit() {
     topic: $("e-topic").value.trim() || "其他",
     priority: $("e-priority").value,
     period: $("e-period").value,
+    due_date: $("e-due").value || null,
+    cal_date: $("e-cal").value || null,
     note: $("e-note").value.trim() || null,
   };
   const r = await fetch(`/api/cards/${c.id}`, {
@@ -240,6 +253,7 @@ function openModal(id) {
     <div class="kv"><span>重要度</span><span>${esc(c.priority)}</span></div>
     <div class="kv"><span>效用期</span><span>${esc(c.period)}</span></div>
     <div class="kv"><span>截止</span><span>${esc(c.due_date || "无")}（${dueTxt}）</span></div>
+    ${c.cal_date ? `<div class="kv"><span>日历</span><span>📌 ${esc(c.cal_date)}</span></div>` : ""}
     <div class="kv"><span>来源</span><span>${esc(c.source)}</span></div>
     <div class="kv"><span>创建</span><span>${esc(c.created_at)}</span></div>
     ${c.note ? `<div class="kv"><span>备注</span><span>${esc(c.note)}</span></div>` : ""}`;
