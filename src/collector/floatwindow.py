@@ -278,14 +278,14 @@ class FloatWindow(QWidget):
         pix = cb.pixmap()  # 无图时返回 null pixmap（offscreen 下 mimeData 可能为 None）
         has_image = not pix.isNull()
         if has_image:
-            # 限制预览尺寸（长图/竖图防撑爆窗口）：宽≤360 高≤150
-            if pix.width() > 360 or pix.height() > 150:
-                pix = pix.scaled(360, 150, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            self.preview.setPixmap(pix)
-            self.preview.show()
+            # 磁盘保存原始分辨率原图（放大查看清晰）；缩放只用于屏幕预览显示
             os.makedirs(TMP_DIR, exist_ok=True)
             self.image_path = os.path.join(TMP_DIR, f"clip_{int(time.time())}.png")
             pix.save(self.image_path, "PNG")
+            show = pix.scaled(360, 150, Qt.KeepAspectRatio, Qt.SmoothTransformation) \
+                if (pix.width() > 360 or pix.height() > 150) else pix
+            self.preview.setPixmap(show)
+            self.preview.show()
         elif mime and mime.hasUrls():
             urls = [u.toLocalFile() for u in mime.urls() if u.isLocalFile()]
             if urls:
