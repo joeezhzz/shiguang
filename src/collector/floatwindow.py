@@ -19,7 +19,6 @@ from PySide6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
 
 from storage import db
 from classifier.classifier import classify, classify_chat, is_chat
-from ocr.ocr import ocr_image
 
 TMP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "data", "tmp")
 
@@ -52,14 +51,9 @@ class AnalyzeWorker(QThread):
         try:
             kind, media_path, ocr = "text", None, None
             if self.image_path:
+                # 图片：不做 OCR、不自动分类（用户决策），直接归档；可手动填描述触发分类
                 kind = "image"
                 media_path = db.save_media(self.image_path)
-                try:
-                    ocr = ocr_image(db.media_abs_path(media_path))
-                except Exception as e:
-                    print(f"[ocr] {e}")
-                if not self.text and ocr:
-                    self.text = ocr.split("\n")[0][:50]
             elif self.files:
                 kind = "file"
                 media_path = db.save_media(self.files[0])
@@ -95,7 +89,7 @@ class FloatWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
-        self.setFixedSize(440, 560)
+        self.setFixedSize(440, 470)  # edit 高度；preview 模式动态加高
         self.setStyleSheet("""
             QWidget { background: rgba(28,30,42,252); color: white; font-size: 13px; }
             QPlainTextEdit { background: white; color: #222; border-radius: 8px;
@@ -154,7 +148,7 @@ class FloatWindow(QWidget):
         self.result_view = QPlainTextEdit()
         self.result_view.setObjectName("result")
         self.result_view.setReadOnly(True)
-        self.result_view.setFixedHeight(150)
+        self.result_view.setFixedHeight(110)
         layout.addWidget(self.result_view)
 
         # 选项区：主题 / 重要度 / 效用期 / 截止 / 按钮（预览确认时显示）
@@ -253,10 +247,12 @@ class FloatWindow(QWidget):
         """edit：录入态；preview：预览确认态"""
         self._mode = mode
         if mode == "edit":
+            self.setFixedHeight(470)
             self.result_view.hide()
             self.options_box.hide()
             self.input.setEnabled(True)
         else:
+            self.setFixedHeight(690)  # 预览确认：多出结果区+选项区
             self.result_view.show()
             self.options_box.show()
             self.input.setEnabled(False)
@@ -280,8 +276,12 @@ class FloatWindow(QWidget):
         self._clear_media()
 
         pix = cb.pixmap()  # 无图时返回 null pixmap（offscreen 下 mimeData 可能为 None）
-        if not pix.isNull():
-            self.preview.setPixmap(pix.scaledToWidth(360, Qt.SmoothTransformation))
+        has_image = not pix.isNull()
+        if has_image:
+            # 限制预览尺寸（长图/竖图防撑爆窗口）：宽≤360 高≤150
+            if pix.width() > 360 or pix.height() > 150:
+                pix = pix.scaled(360, 150, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            self.preview.setPixmap(pix)
             self.preview.show()
             os.makedirs(TMP_DIR, exist_ok=True)
             self.image_path = os.path.join(TMP_DIR, f"clip_{int(time.time())}.png")
@@ -293,8 +293,9 @@ class FloatWindow(QWidget):
                 self.file_tag.setText("📎 " + "、".join(os.path.basename(u) for u in urls[:3]))
                 self.file_tag.show()
 
+        # 有图片时忽略剪贴板文本（微信复制图片时文本是 file:// 路径，会污染内容字段）
         text = cb.text().strip()
-        if text and not self.input.toPlainText().strip():
+        if text and not has_image and not self.input.toPlainText().strip():
             self.input.setPlainText(text)
 
     def _clear_media(self):
@@ -345,6 +346,8 @@ class FloatWindow(QWidget):
                 else:
                     lines.append(f"📎 {b.get('label', '补充')}：{b.get('text', '')}")
             self.result_view.setPlainText("\n\n".join(lines) or "（未能提炼，原文会完整保留）")
+        elif result.get("kind") == "image":
+            self.result_view.setPlainText("🖼 图片已就绪（不做文字识别）\n请在下方设置主题、重要度等分类")
         else:
             self.result_view.setPlainText(f"📝 摘要：{cls.get('summary') or '（无文本摘要）'}")
         self.topic_combo.setCurrentText(cls.get("topic") or "其他")

@@ -89,15 +89,15 @@ win.on_save()
 wait_worker(win._analyzer)
 win.on_confirm()
 wait_worker(win._saver)
-cards = db.list_cards(q="报名")
-imgs = [c for c in cards if c["kind"] == "image"]
-check("图片卡已入库且OCR命中搜索", len(imgs) >= 1)
+all_cards = db.list_cards()
+imgs = [c for c in all_cards if c["kind"] == "image"]
+check("图片卡已入库", len(imgs) >= 1)
 if imgs:
     c = imgs[0]
     created.append(c["id"])
-    print(f"   OCR: {c['ocr_text']!r}")
-    check("OCR提取出报名文字", c["ocr_text"] and "报名" in c["ocr_text"])
+    check("图片不OCR（ocr_text为空）", not c.get("ocr_text"))
     check("媒体文件存在", c["media_path"] and os.path.exists(db.media_abs_path(c["media_path"])))
+    check("来源=截图", c["source"] == "截图")
 
 print("== 3. Flask API ==")
 client = create_app().test_client()
