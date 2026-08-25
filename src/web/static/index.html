@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>拾光 · 信息收纳看板</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <div class="brand"><span class="logo">📥</span> 拾光</div>
+  <input id="q" type="search" placeholder="🔍 搜索内容 / 图片里的字 / 标签">
+  <div class="filters">
+    <select id="f-topic"></select>
+    <select id="f-priority"></select>
+    <select id="f-period"></select>
+    <select id="f-status"></select>
+  </div>
+  <div class="switches">
+    <button id="sw-status" class="active">状态列</button>
+    <button id="sw-topic">主题列</button>
+    <button id="sw-calendar">📅 日历</button>
+  </div>
+  <span id="count" class="count"></span>
+</header>
+<main id="board"></main>
+
+<div id="modal" class="modal hidden">
+  <div class="modal-box">
+    <div class="modal-head"><b id="m-title">卡片详情</b><button id="m-close">✕</button></div>
+    <div id="m-body" class="modal-body"></div>
+    <div class="modal-foot">
+      <label>状态</label>
+      <select id="m-status"></select>
+      <button id="m-del" class="danger">删除</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
