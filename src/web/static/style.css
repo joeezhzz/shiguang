@@ -87,6 +87,18 @@ select {
 .modal-box { background: #fff; border-radius: 14px; width: 460px; max-width: 92vw; max-height: 84vh; display: flex; flex-direction: column; }
 .modal-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border); }
 .modal-head button { border: none; background: none; font-size: 16px; color: var(--muted); cursor: pointer; }
+#m-edit { font-size: 13px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 8px; margin-right: 8px; }
+
+/* 详情编辑表单 */
+#m-body input, #m-body select, #m-body textarea {
+  padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px;
+  font-size: 13px; font-family: inherit; width: 100%; color: var(--text);
+}
+#m-body textarea { resize: vertical; }
+#m-body input:focus, #m-body select:focus, #m-body textarea:focus { outline: none; border-color: var(--accent); }
+.edit-actions { display: flex; gap: 8px; margin-top: 12px; }
+.edit-actions button { padding: 7px 16px; border-radius: 8px; border: 1px solid var(--border); background: #fff; cursor: pointer; }
+.edit-actions #e-save { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 .modal-body { padding: 16px 18px; overflow-y: auto; line-height: 1.7; font-size: 13px; }
 .modal-body img { max-width: 100%; border-radius: 8px; margin: 8px 0; }
 .modal-body .kv { display: flex; gap: 8px; margin: 4px 0; }

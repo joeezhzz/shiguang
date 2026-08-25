@@ -58,7 +58,11 @@ win.show()
 win.fill_from_clipboard()
 check("剪贴板文本自动填入输入框", win.input.toPlainText().strip() == text)
 win.on_save()
-wait_worker(win._worker)
+wait_worker(win._analyzer)
+check("预览区展示AI整理结果",
+      "摘要" in win.result_view.toPlainText() or "主观点" in win.result_view.toPlainText())
+win.on_confirm()
+wait_worker(win._saver)
 cards = db.list_cards(q="社团招新面试")
 check("文本卡已入库", len(cards) == 1)
 if cards:
@@ -82,7 +86,9 @@ win.input.clear()
 win.fill_from_clipboard()
 check("剪贴板图片已载入预览", win.image_path is not None and os.path.exists(win.image_path))
 win.on_save()
-wait_worker(win._worker)
+wait_worker(win._analyzer)
+win.on_confirm()
+wait_worker(win._saver)
 cards = db.list_cards(q="报名")
 imgs = [c for c in cards if c["kind"] == "image"]
 check("图片卡已入库且OCR命中搜索", len(imgs) >= 1)
@@ -112,8 +118,8 @@ for cid in created:
     db.delete_card(cid)
 check("测试数据清理完毕", db.list_cards(q="社团招新面试") == [] and db.list_cards(q="报名") == [])
 
-# 安全退出：等待仍在运行的后台分类线程，避免退出时段错误
-for w in (win._pre, win._worker):
+# 安全退出：等待仍在运行的后台线程，避免退出时段错误
+for w in (win._analyzer, win._saver):
     if w is not None and w.isRunning():
         w.wait(30000)
 app.quit()

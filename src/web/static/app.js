@@ -164,10 +164,61 @@ function renderBranches(c) {
   return html;
 }
 
+/* ---------- 详情编辑 ---------- */
+let editing = false;
+let topicList = [];
+
+async function loadTopics() {
+  const r = await fetch("/api/topics");
+  topicList = await r.json();
+}
+
+function editModal() {
+  const c = state.current;
+  if (!c) return;
+  editing = true;
+  $("m-edit").textContent = "查看";
+  const opts = (cur, arr) => arr
+    .map((x) => `<option ${x === cur ? "selected" : ""}>${x}</option>`).join("");
+  $("m-body").innerHTML = `
+    <div class="kv"><span>主题</span><input id="e-topic" list="sg-topics" value="${esc(c.topic)}">
+      <datalist id="sg-topics">${topicList.map((t) => `<option value="${esc(t)}">`).join("")}</datalist></div>
+    <div class="kv"><span>重要度</span><select id="e-priority">${opts(c.priority, PRIORITIES)}</select></div>
+    <div class="kv"><span>效用期</span><select id="e-period">${opts(c.period, PERIODS)}</select></div>
+    <div class="kv"><span>备注</span><textarea id="e-note" rows="3">${esc(c.note || "")}</textarea></div>
+    <div class="edit-actions">
+      <button id="e-save">💾 保存修改</button>
+      <button id="e-cancel">取消</button>
+    </div>`;
+  $("e-save").onclick = saveEdit;
+  $("e-cancel").onclick = () => openModal(c.id);
+}
+
+async function saveEdit() {
+  const c = state.current;
+  if (!c) return;
+  const fields = {
+    topic: $("e-topic").value.trim() || "其他",
+    priority: $("e-priority").value,
+    period: $("e-period").value,
+    note: $("e-note").value.trim() || null,
+  };
+  const r = await fetch(`/api/cards/${c.id}`, {
+    method: "PATCH", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(fields),
+  });
+  const d = await r.json();
+  Object.assign(c, d.card);
+  loadTopics();          // 可能新增了自定义主题
+  openModal(c.id);       // 回查看模式
+}
+
 function openModal(id) {
   const c = state.cards.find((x) => x.id === id);
   if (!c) return;
   state.current = c;
+  editing = false;
+  $("m-edit").textContent = "✏️ 编辑";
   $("m-title").textContent = `卡片 #${c.id} · ${c.topic}`;
   const dl = daysLeft(c.due_date);
   const dueTxt = dl === null ? "无" : (dl < 0 ? `${-dl} 天前已到期` : (dl === 0 ? "今天到期" : `剩 ${dl} 天`));
@@ -220,6 +271,7 @@ function bind() {
   $("sw-topic").onclick = () => { state.mode = "topic"; state.view = "board"; syncSwitch(); render(); };
   $("sw-calendar").onclick = () => { state.view = "calendar"; syncSwitch(); render(); };
   $("m-close").onclick = closeModal;
+  $("m-edit").onclick = () => { if (editing) openModal(state.current.id); else editModal(); };
   $("modal").addEventListener("click", (e) => { if (e.target.id === "modal") closeModal(); });
   $("m-status").addEventListener("change", (e) => patchCurrent({ status: e.target.value }));
   $("m-del").onclick = async () => {
@@ -246,4 +298,5 @@ function initSelects() {
 
 initSelects();
 bind();
+loadTopics();
 load();

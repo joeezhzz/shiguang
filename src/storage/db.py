@@ -199,6 +199,18 @@ def stats():
             conn.close()
 
 
+def get_topics():
+    """主题列表 = 内置 5 类 + 用户自定义（从已存卡片中自动收集）"""
+    with _lock:
+        conn = _conn()
+        try:
+            rows = conn.execute("SELECT DISTINCT topic FROM cards WHERE topic IS NOT NULL AND topic != ''").fetchall()
+        finally:
+            conn.close()
+    custom = [r["topic"] for r in rows if r["topic"] not in TOPICS]
+    return TOPICS + custom
+
+
 def parse_due(text, now=None):
     """从文本里粗提取日期：'9月20日' → '2026-09-20'；失败返回 None"""
     if not text:

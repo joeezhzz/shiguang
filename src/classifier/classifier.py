@@ -123,12 +123,19 @@ def _rule_classify(text, today=None):
 
 
 def is_chat(text):
-    """检测是否为多轮聊天记录：多行且多数行符合「说话人: 内容」格式"""
+    """检测是否为多轮聊天记录：
+    1) 带说话人前缀（"人名: 内容"）；或
+    2) 微信复制不带昵称的纯消息流（多行短句 + 含问句）
+    """
     lines = [l.strip() for l in (text or "").splitlines() if l.strip()]
     if len(lines) < 3:
         return False
-    n = sum(1 for l in lines if re.match(r"^[\u4e00-\u9fa5A-Za-z0-9_]{1,16}[：:]\s*\S", l))
-    return n >= max(2, int(len(lines) * 0.6))
+    n_speaker = sum(1 for l in lines if re.match(r"^[\u4e00-\u9fa5A-Za-z0-9_]{1,16}[：:]\s*\S", l))
+    if n_speaker >= max(2, int(len(lines) * 0.6)):
+        return True
+    n_short = sum(1 for l in lines if len(l) <= 50)
+    has_q = any(re.search(r"[?？]|[吗呢呀啊][?？]?$", l) for l in lines)
+    return n_short >= max(3, int(len(lines) * 0.7)) and has_q
 
 
 def _ai_classify_chat(text, today):
@@ -137,7 +144,7 @@ def _ai_classify_chat(text, today):
     if not key:
         raise RuntimeError("no api key")
     prompt = (
-        f"今天是 {today}。下面是一段聊天记录（含主要内容和穿插的提问、补充信息），请结构化整理。\n"
+        f"今天是 {today}。下面是一段聊天记录（微信复制可能不含说话人昵称，请根据语义判断谁问谁答），请结构化整理。\n"
         "只输出严格 JSON，不要其他文字：\n"
         '{"topic": 从[' + ",".join(TOPICS) + ']选一个,'
         ' "priority": "高"|"中"|"低",'

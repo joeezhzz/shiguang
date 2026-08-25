@@ -1,21 +1,21 @@
 """拾光 · 悬浮窗（真机版）
+两步流程：录入 → AI 分析（分类/结构化整理/OCR）→ 预览确认 → 入库
 - 全局快捷键 Ctrl+Shift+V 唤出/隐藏（注册在 main.py）
-- 唤起时自动读取剪贴板：文本 / 图片 / 复制的文件，一步到位
-- 文件拖拽直接收纳
-- 保存时 AI 自动分类（断网降级规则），可手动调整重要度/效用期/截止时间
-- Enter 保存 · Esc 取消
+- 唤起时自动读取剪贴板：文本 / 图片 / 复制的文件，一步到位；文件拖拽直接收纳
+- Enter：触发 AI 分析 → 预览确认保存；Esc：取消
+- 预览确认页可修改主题（支持自定义新主题）/重要度/效用期/截止，
+  或选择「仅存原文」（不采纳 AI 整理，原文 100% 保留入库）
 """
+import json
 import os
 import time
 from datetime import datetime, timedelta
 
 from PySide6.QtCore import Qt, QThread, Signal, QTimer
-from PySide6.QtGui import QPixmap, QColor
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
                                QPlainTextEdit, QLabel, QPushButton, QButtonGroup,
-                               QFrame)
-
-import json
+                               QComboBox)
 
 from storage import db
 from classifier.classifier import classify, classify_chat, is_chat
@@ -39,34 +39,18 @@ class InputBox(QPlainTextEdit):
         super().keyPressEvent(e)
 
 
-class PreWorker(QThread):
-    """预分类：唤起时后台跑 AI，结果实时显示在建议区"""
+class AnalyzeWorker(QThread):
+    """后台分析：OCR（图片）→ AI 分类/结构化整理，产出预览数据"""
     done = Signal(dict)
-
-    def __init__(self, text, parent=None):
-        super().__init__(parent)
-        self.text = text
-
-    def run(self):
-        try:
-            self.done.emit(classify(self.text))
-        except Exception as e:
-            print(f"[preclassify] {e}")
-
-
-class SaveWorker(QThread):
-    """保存：存媒体 → OCR → AI 分类 → 入库（全在后台，不卡 UI）"""
-    done = Signal(int)
     failed = Signal(str)
 
-    def __init__(self, text, image_path, files, source, priority, period, due_date, parent=None):
+    def __init__(self, text, image_path, files, parent=None):
         super().__init__(parent)
         self.text, self.image_path, self.files = text, image_path, files
-        self.source, self.priority, self.period, self.due_date = source, priority, period, due_date
 
     def run(self):
         try:
-            media_path, kind, ocr = None, "text", None
+            kind, media_path, ocr = "text", None, None
             if self.image_path:
                 kind = "image"
                 media_path = db.save_media(self.image_path)
@@ -80,24 +64,28 @@ class SaveWorker(QThread):
                 kind = "file"
                 media_path = db.save_media(self.files[0])
                 self.text = self.text or os.path.basename(self.files[0])
-
             chat = bool(self.text.strip()) and is_chat(self.text)
             cls = classify_chat(self.text) if chat else (classify(self.text) if self.text.strip() else None)
-            card_id = db.create_card(
-                kind=kind, content=(self.text or "")[:2000], media_path=media_path,
-                source=self.source,
-                topic=(cls or {}).get("topic", "其他"),
-                priority=self.priority or (cls or {}).get("priority", "中"),
-                period=self.period or (cls or {}).get("period", "永久参考"),
-                due_date=self.due_date or (cls or {}).get("due_date"),
-                ocr_text=ocr,
-                tags=",".join((cls or {}).get("tags", [])) or None,
-                main_point=(cls or {}).get("main_point") if chat else None,
-                branches=json.dumps((cls or {}).get("branches"), ensure_ascii=False)
-                if chat and (cls or {}).get("branches") else None,
-            )
-            if self.image_path and os.path.exists(self.image_path):
-                os.remove(self.image_path)  # 清理剪贴板临时图
+            self.done.emit({
+                "kind": kind, "text": self.text, "media_path": media_path,
+                "ocr": ocr, "chat": chat, "cls": cls or {},
+            })
+        except Exception as e:
+            self.failed.emit(str(e))
+
+
+class SaveWorker(QThread):
+    """入库（字段已在预览确认时确定）"""
+    done = Signal(int)
+    failed = Signal(str)
+
+    def __init__(self, payload, parent=None):
+        super().__init__(parent)
+        self.payload = payload
+
+    def run(self):
+        try:
+            card_id = db.create_card(**self.payload)
             self.done.emit(card_id)
         except Exception as e:
             self.failed.emit(str(e))
@@ -107,11 +95,13 @@ class FloatWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
-        self.setFixedSize(430, 400)
+        self.setFixedSize(440, 560)
         self.setStyleSheet("""
-            QWidget { background: rgba(28,30,42,250); color: white; font-size: 13px; }
+            QWidget { background: rgba(28,30,42,252); color: white; font-size: 13px; }
             QPlainTextEdit { background: white; color: #222; border-radius: 8px;
                              border: none; padding: 8px; font-size: 13px; }
+            QPlainTextEdit#result { background: rgba(255,255,255,10); color: #dfe2ee;
+                                    border: 1px solid rgba(255,255,255,16); }
             QLabel#title { font-size: 15px; font-weight: bold; padding: 8px 10px 0 10px; }
             QLabel#hint  { font-size: 12px; color: #8b90a5; padding: 0 10px 8px 10px; }
             QLabel#suggest { background: rgba(158,203,255,25); color: #9ecbff;
@@ -120,9 +110,17 @@ class FloatWindow(QWidget):
             QLabel#fileTag { background: rgba(255,255,255,12); border-radius: 6px;
                              padding: 4px 8px; font-size: 12px; color: #c9cddd; }
             QPushButton { background: rgba(255,255,255,14); border: 1px solid rgba(255,255,255,20);
-                          border-radius: 6px; padding: 4px 10px; color: #dfe2ee; }
+                          border-radius: 6px; padding: 5px 12px; color: #dfe2ee; }
             QPushButton:hover { background: rgba(255,255,255,24); }
             QPushButton:checked { background: #4f7cff; border-color: #4f7cff; color: white; }
+            QPushButton#confirm { background: #4f7cff; border-color: #4f7cff; color: white;
+                                  font-weight: bold; }
+            QPushButton#confirm:hover { background: #5f88ff; }
+            QPushButton#raw { background: rgba(255,255,255,10); color: #c9cddd; }
+            QComboBox { background: rgba(255,255,255,14); border: 1px solid rgba(255,255,255,20);
+                        border-radius: 6px; padding: 4px 10px; color: white; }
+            QComboBox QAbstractItemView { background: #2b2d42; color: white;
+                                          selection-background-color: #4f7cff; }
             QLabel#rowLabel { color: #8b90a5; font-size: 12px; padding-right: 4px; }
         """)
 
@@ -135,10 +133,10 @@ class FloatWindow(QWidget):
         layout.addWidget(self.title)
 
         self.input = InputBox()
-        self.input.setPlaceholderText("粘贴或输入内容，Enter 保存（Shift+Enter 换行）")
-        self.input.setFixedHeight(110)
+        self.input.setPlaceholderText("粘贴或输入内容，Enter 开始整理（Shift+Enter 换行）")
+        self.input.setFixedHeight(100)
         self.input.submitted.connect(self.on_save)
-        self.input.cancelled.connect(self.hide)
+        self.input.cancelled.connect(self.on_cancel)
         layout.addWidget(self.input)
 
         self.preview = QLabel()
@@ -152,11 +150,28 @@ class FloatWindow(QWidget):
         self.file_tag.hide()
         layout.addWidget(self.file_tag)
 
-        self.suggest = QLabel("AI 建议：—")
-        self.suggest.setObjectName("suggest")
-        layout.addWidget(self.suggest)
+        # AI 整理结果预览区（只读）
+        self.result_view = QPlainTextEdit()
+        self.result_view.setObjectName("result")
+        self.result_view.setReadOnly(True)
+        self.result_view.setFixedHeight(150)
+        layout.addWidget(self.result_view)
 
-        # 重要度
+        # 选项区：主题 / 重要度 / 效用期 / 截止 / 按钮（预览确认时显示）
+        self.options_box = QWidget()
+        opt = QVBoxLayout(self.options_box)
+        opt.setContentsMargins(0, 0, 0, 0)
+        opt.setSpacing(8)
+
+        row_topic = QHBoxLayout()
+        row_topic.addWidget(self._mk_label("主题"))
+        self.topic_combo = QComboBox()
+        self.topic_combo.setEditable(True)
+        self.topic_combo.addItems(db.get_topics())
+        self.topic_combo.setMinimumWidth(200)
+        row_topic.addWidget(self.topic_combo, 1)
+        opt.addLayout(row_topic)
+
         row1 = QHBoxLayout()
         row1.addWidget(self._mk_label("重要度"))
         self.pri_group = QButtonGroup(self)
@@ -166,9 +181,8 @@ class FloatWindow(QWidget):
             self.pri_group.addButton(b)
             row1.addWidget(b)
         row1.addStretch()
-        layout.addLayout(row1)
+        opt.addLayout(row1)
 
-        # 效用期
         row2 = QHBoxLayout()
         row2.addWidget(self._mk_label("效用期"))
         self.period_group = QButtonGroup(self)
@@ -178,9 +192,8 @@ class FloatWindow(QWidget):
             self.period_group.addButton(b)
             row2.addWidget(b)
         row2.addStretch()
-        layout.addLayout(row2)
+        opt.addLayout(row2)
 
-        # 截止时间
         row3 = QHBoxLayout()
         row3.addWidget(self._mk_label("截止"))
         self.due_group = QButtonGroup(self)
@@ -192,19 +205,42 @@ class FloatWindow(QWidget):
             self.due_group.addButton(b)
             row3.addWidget(b)
         row3.addStretch()
-        layout.addLayout(row3)
+        opt.addLayout(row3)
 
-        self.hint = QLabel("Enter 保存 · Esc 取消 · 文件可直接拖进来")
+        row_btn = QHBoxLayout()
+        self.btn_confirm = QPushButton("✅ 确认保存")
+        self.btn_confirm.setObjectName("confirm")
+        self.btn_raw = QPushButton("📄 仅存原文")
+        self.btn_raw.setObjectName("raw")
+        self.btn_cancel = QPushButton("✕ 取消")
+        self.btn_confirm.clicked.connect(self.on_confirm)
+        self.btn_raw.clicked.connect(self.on_save_raw)
+        self.btn_cancel.clicked.connect(self.on_cancel)
+        row_btn.addWidget(self.btn_confirm)
+        row_btn.addWidget(self.btn_raw)
+        row_btn.addWidget(self.btn_cancel)
+        opt.addLayout(row_btn)
+
+        layout.addWidget(self.options_box)
+
+        self.suggest = QLabel("AI 建议：—")
+        self.suggest.setObjectName("suggest")
+        layout.addWidget(self.suggest)
+
+        self.hint = QLabel("Enter 开始整理 · Esc 取消 · 文件可直接拖进来")
         self.hint.setObjectName("hint")
         layout.addWidget(self.hint)
 
+        self._mode = "edit"
+        self._analyzed = None
+        self._source = "手动"
         self.image_path = None
         self.files = []
-        self.last_cls = None
         self._drag_pos = None
-        self._worker = None
-        self._pre = None
+        self._analyzer = None
+        self._saver = None
         self.setAcceptDrops(True)
+        self._set_mode("edit")
 
     # ---------- 工具 ----------
     @staticmethod
@@ -213,14 +249,37 @@ class FloatWindow(QWidget):
         lb.setObjectName("rowLabel")
         return lb
 
+    def _set_mode(self, mode):
+        """edit：录入态；preview：预览确认态"""
+        self._mode = mode
+        if mode == "edit":
+            self.result_view.hide()
+            self.options_box.hide()
+            self.input.setEnabled(True)
+        else:
+            self.result_view.show()
+            self.options_box.show()
+            self.input.setEnabled(False)
+            self._refresh_topics()
+            self.btn_confirm.setFocus()
+
+    def _refresh_topics(self):
+        current = self.topic_combo.currentText()
+        self.topic_combo.clear()
+        self.topic_combo.addItems(db.get_topics())
+        if current:
+            self.topic_combo.setCurrentText(current)
+
     # ---------- 剪贴板一步录入 ----------
     def fill_from_clipboard(self):
+        if self._mode != "edit":
+            return
         cb = QApplication.clipboard()
         mime = cb.mimeData()
         self.files = []
         self._clear_media()
 
-        pix = cb.pixmap()  # 无图时返回 null pixmap（offscreen 下 mimeData 可能为 None，故用 pixmap 判空）
+        pix = cb.pixmap()  # 无图时返回 null pixmap（offscreen 下 mimeData 可能为 None）
         if not pix.isNull():
             self.preview.setPixmap(pix.scaledToWidth(360, Qt.SmoothTransformation))
             self.preview.show()
@@ -237,20 +296,6 @@ class FloatWindow(QWidget):
         text = cb.text().strip()
         if text and not self.input.toPlainText().strip():
             self.input.setPlainText(text)
-            self._preclassify(text)
-
-    def _preclassify(self, text):
-        self.suggest.setText("AI 分类中…")
-        self._pre = PreWorker(text, self)
-        self._pre.done.connect(self._on_pre_done)
-        self._pre.start()
-
-    def _on_pre_done(self, cls):
-        self.last_cls = cls
-        due = cls.get("due_date") or "无"
-        self.suggest.setText(
-            f"AI 建议：{cls.get('topic')} · {cls.get('priority')} · {cls.get('period')} · 截止 {due}"
-            + (f"  ｜{cls.get('summary')}" if cls.get("summary") else ""))
 
     def _clear_media(self):
         if self.image_path and os.path.exists(self.image_path):
@@ -263,48 +308,142 @@ class FloatWindow(QWidget):
         self.preview.hide()
         self.file_tag.hide()
 
-    # ---------- 保存 ----------
+    # ---------- 流程：Enter → 分析 → 预览 → 确认 ----------
     def on_save(self):
+        if self._mode == "preview":
+            self.on_confirm()
+            return
         text = self.input.toPlainText().strip()
         if not text and not self.image_path and not self.files:
             self.hint.setText("⚠ 没有可保存的内容")
             return
-        pri = self.pri_group.checkedButton().text() if self.pri_group.checkedButton() else None
-        per = self.period_group.checkedButton().text() if self.period_group.checkedButton() else None
+        if self.image_path:
+            self._source = "截图"
+        elif self.files:
+            self._source = "拖拽"
+        else:
+            self._source = "剪贴板" if text == QApplication.clipboard().text().strip() else "手动"
+
+        self._set_mode("preview")
+        self.result_view.setPlainText("🔄 AI 正在分析整理…")
+        self.hint.setText("AI 整理中，请稍候…")
+        self._analyzer = AnalyzeWorker(text, self.image_path, self.files, self)
+        self._analyzer.done.connect(self._on_analyzed)
+        self._analyzer.failed.connect(self._on_analyze_failed)
+        self._analyzer.start()
+
+    def _on_analyzed(self, result):
+        self._analyzed = result
+        cls = result.get("cls") or {}
+        if result.get("chat"):
+            main = cls.get("main_point") or ""
+            branches = cls.get("branches") or []
+            lines = [f"📌 主观点：{main}"] if main else []
+            for b in branches:
+                if b.get("type") == "qa":
+                    lines.append(f"❓ {b.get('q', '')}\n💡 {b.get('a', '')}")
+                else:
+                    lines.append(f"📎 {b.get('label', '补充')}：{b.get('text', '')}")
+            self.result_view.setPlainText("\n\n".join(lines) or "（未能提炼，原文会完整保留）")
+        else:
+            self.result_view.setPlainText(f"📝 摘要：{cls.get('summary') or '（无文本摘要）'}")
+        self.topic_combo.setCurrentText(cls.get("topic") or "其他")
+        self.suggest.setText(f"AI 分类：{cls.get('topic', '其他')} · {cls.get('priority', '中')} · "
+                             f"{cls.get('period', '永久参考')} · 截止 {cls.get('due_date') or '无'}")
+        self.hint.setText("确认无误按 Enter 保存 · 可改主题/重要度/截止 · Esc 取消")
+        self.btn_confirm.setFocus()
+
+    def _on_analyze_failed(self, err):
+        self.result_view.setPlainText(f"❌ AI 整理失败：{err}\n\n可点击「仅存原文」直接保存，或 Esc 取消")
+        self._analyzed = None
+        self.hint.setText("AI 整理失败，可仅存原文或取消")
+
+    def _collect_payload(self, use_ai):
+        a = self._analyzed
+        cls = a.get("cls") or {}
+        pri = self.pri_group.checkedButton().text() if self.pri_group.checkedButton() else (
+            cls.get("priority") if use_ai else "中")
+        per = self.period_group.checkedButton().text() if self.period_group.checkedButton() else (
+            cls.get("period") if use_ai else "永久参考")
         due = None
         if self.due_days:
             due = (datetime.now() + timedelta(days=self.due_days)).strftime("%Y-%m-%d")
-        if self.image_path:
-            source = "截图"
-        elif self.files:
-            source = "拖拽"
+        if not due and use_ai:
+            due = cls.get("due_date")
+        payload = {
+            "kind": a.get("kind", "text"),
+            "content": (a.get("text") or "")[:2000],
+            "media_path": a.get("media_path"),
+            "source": self._source,
+            "topic": self.topic_combo.currentText().strip() or "其他",
+            "priority": pri,
+            "period": per,
+            "due_date": due,
+            "ocr_text": a.get("ocr"),
+        }
+        if use_ai:
+            payload["tags"] = ",".join(cls.get("tags", [])) or None
+            if a.get("chat"):
+                payload["main_point"] = cls.get("main_point")
+                payload["branches"] = json.dumps(cls.get("branches"), ensure_ascii=False) \
+                    if cls.get("branches") else None
+        return payload
+
+    def on_confirm(self):
+        if not self._analyzed:
+            return
+        self._save(self._collect_payload(use_ai=True))
+
+    def on_save_raw(self):
+        """仅存原文：不采纳 AI 整理，主题/重要度等仍可手动选"""
+        if not self._analyzed:
+            return
+        self._save(self._collect_payload(use_ai=False))
+
+    def _save(self, payload):
+        self.hint.setText("🔄 保存中…")
+        self._saver = SaveWorker(payload, self)
+        self._saver.done.connect(self._on_saved)
+        self._saver.failed.connect(self._on_failed)
+        self._saver.start()
+
+    def _on_saved(self, card_id):
+        self._clear_all()
+        self.hint.setText(f"✅ 已收纳（#{card_id}）")
+        QTimer.singleShot(1200, self.hide)
+
+    def _on_failed(self, err):
+        self.hint.setText(f"❌ 保存失败: {err}")
+
+    # ---------- 取消 / 清空 ----------
+    def on_cancel(self):
+        if self._mode == "preview" and self._analyzed:
+            self._clear_all()
         else:
-            source = "剪贴板" if text == QApplication.clipboard().text().strip() else "手动"
+            self._clear_all()
+            self.hide()
 
-        self.setEnabled(False)
-        self.hint.setText("🔄 收纳中…")
-        self._worker = SaveWorker(text, self.image_path, self.files, source, pri, per, due, self)
-        self._worker.done.connect(self.on_saved)
-        self._worker.failed.connect(self.on_failed)
-        self._worker.start()
-
-    def on_saved(self, card_id):
-        self.last_cls = None
+    def _clear_all(self):
         self.input.clear()
         self._clear_media()
+        self.result_view.clear()
         for g in (self.pri_group, self.period_group, self.due_group):
             if g.checkedButton():
                 g.setExclusive(False)
                 g.checkedButton().setChecked(False)
                 g.setExclusive(True)
         self.due_days = None
-        self.setEnabled(True)
-        self.hint.setText(f"✅ 已收纳（#{card_id}）")
-        QTimer.singleShot(1200, self.hide)
+        self._analyzed = None
+        self.input.setEnabled(True)
+        self._set_mode("edit")
+        self.suggest.setText("AI 建议：—")
+        self.hint.setText("Enter 开始整理 · Esc 取消 · 文件可直接拖进来")
 
-    def on_failed(self, err):
-        self.setEnabled(True)
-        self.hint.setText(f"❌ 保存失败: {err}")
+    def keyPressEvent(self, e):
+        if e.key() == Qt.Key_Escape:
+            self.on_cancel()
+            return
+        super().keyPressEvent(e)
 
     # ---------- 无边框拖动 ----------
     def mousePressEvent(self, e):

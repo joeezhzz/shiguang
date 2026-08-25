@@ -42,6 +42,13 @@ check("识别多轮对话", is_chat(chat_sample))
 check("普通文本不误判", not is_chat(plain))
 check("单行不算聊天", not is_chat("学长：你好"))
 check("空文本", not is_chat(""))
+# 微信复制不带昵称的纯消息流
+plain_flow = """想去做科研肯去联系老师就行，不过建议先了解一下自己想往哪个方向发展，老师都是干什么的再做决定
+这些官网上都能查到
+大一确定好了进去了是不是也是熟悉一下做一下苦力什么的呀
+不一定，要看老师
+也要看你的学习能力"""
+check("识别无昵称纯消息流", is_chat(plain_flow))
 
 print("== 2. AI 结构化整理（真实调用） ==")
 res = classify_chat(chat_sample)

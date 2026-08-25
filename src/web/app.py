@@ -25,6 +25,10 @@ def create_app():
     def media(filename):
         return send_from_directory(db.MEDIA_DIR, filename)
 
+    @app.route("/api/topics")
+    def api_topics():
+        return jsonify(db.get_topics())
+
     @app.route("/api/cards/<int:cid>", methods=["PATCH"])
     def api_update(cid):
         data = request.get_json(force=True, silent=True) or {}
