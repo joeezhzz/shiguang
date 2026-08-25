@@ -10,12 +10,19 @@ from PySide6.QtCore import QEventLoop, QTimer
 from PySide6.QtGui import QImage, QColor
 import pyperclip
 
-from storage import db
+import tempfile
+import storage.db as db
+# 测试隔离：临时数据库，不污染真实数据
+_tmp = tempfile.mkdtemp(prefix="shiguang_test_")
+db.DATA_DIR = _tmp
+db.DB_PATH = os.path.join(_tmp, "test.db")
+db.MEDIA_DIR = os.path.join(_tmp, "media")
+db.init_db()
+
 from collector.floatwindow import FloatWindow
 from web.app import create_app
 
 app = QApplication([])
-db.init_db()
 ok = fail = 0
 
 # 清理上次运行可能残留的测试数据（防崩溃残留污染断言）

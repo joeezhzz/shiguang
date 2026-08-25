@@ -94,3 +94,14 @@ select {
 .modal-body .kv .ocr { background: #f6f7fa; border-radius: 6px; padding: 6px 10px; white-space: pre-wrap; font-size: 12px; }
 .modal-foot { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-top: 1px solid var(--border); }
 .modal-foot .danger { margin-left: auto; border: 1px solid #f0c4c4; background: #fdf2f2; color: #c0392b; border-radius: 8px; padding: 7px 14px; cursor: pointer; }
+
+/* 聊天记录结构化展示 */
+.main-point { font-weight: 600; }
+.branches { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.br { border-left: 3px solid var(--accent); padding: 6px 10px; background: #f4f7ff; border-radius: 0 8px 8px 0; }
+.br.note { border-left-color: var(--mid); background: #fbf7ef; }
+.br-q { font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+.br-a { font-size: 13px; }
+details.raw { margin-top: 8px; font-size: 12px; }
+details.raw summary { cursor: pointer; color: var(--muted); }
+details.raw pre { white-space: pre-wrap; background: #f6f7fa; padding: 8px 10px; border-radius: 6px; font-size: 12px; }

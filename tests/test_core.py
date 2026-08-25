@@ -4,7 +4,15 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
 
-from storage import db
+import tempfile
+import storage.db as db
+# 测试隔离：临时数据库，不污染真实数据
+_tmp = tempfile.mkdtemp(prefix="shiguang_test_")
+db.DATA_DIR = _tmp
+db.DB_PATH = os.path.join(_tmp, "test.db")
+db.MEDIA_DIR = os.path.join(_tmp, "media")
+db.init_db()
+
 from classifier.classifier import classify, _rule_classify
 from ocr.ocr import ocr_image
 

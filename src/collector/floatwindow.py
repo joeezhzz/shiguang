@@ -15,8 +15,10 @@ from PySide6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
                                QPlainTextEdit, QLabel, QPushButton, QButtonGroup,
                                QFrame)
 
+import json
+
 from storage import db
-from classifier.classifier import classify
+from classifier.classifier import classify, classify_chat, is_chat
 from ocr.ocr import ocr_image
 
 TMP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "data", "tmp")
@@ -79,7 +81,8 @@ class SaveWorker(QThread):
                 media_path = db.save_media(self.files[0])
                 self.text = self.text or os.path.basename(self.files[0])
 
-            cls = classify(self.text) if self.text.strip() else None
+            chat = bool(self.text.strip()) and is_chat(self.text)
+            cls = classify_chat(self.text) if chat else (classify(self.text) if self.text.strip() else None)
             card_id = db.create_card(
                 kind=kind, content=(self.text or "")[:2000], media_path=media_path,
                 source=self.source,
@@ -89,6 +92,9 @@ class SaveWorker(QThread):
                 due_date=self.due_date or (cls or {}).get("due_date"),
                 ocr_text=ocr,
                 tags=",".join((cls or {}).get("tags", [])) or None,
+                main_point=(cls or {}).get("main_point") if chat else None,
+                branches=json.dumps((cls or {}).get("branches"), ensure_ascii=False)
+                if chat and (cls or {}).get("branches") else None,
             )
             if self.image_path and os.path.exists(self.image_path):
                 os.remove(self.image_path)  # 清理剪贴板临时图

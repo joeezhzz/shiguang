@@ -122,6 +122,96 @@ def _rule_classify(text, today=None):
             "tags": [topic], "due_date": due, "summary": text[:20]}
 
 
+def is_chat(text):
+    """检测是否为多轮聊天记录：多行且多数行符合「说话人: 内容」格式"""
+    lines = [l.strip() for l in (text or "").splitlines() if l.strip()]
+    if len(lines) < 3:
+        return False
+    n = sum(1 for l in lines if re.match(r"^[\u4e00-\u9fa5A-Za-z0-9_]{1,16}[：:]\s*\S", l))
+    return n >= max(2, int(len(lines) * 0.6))
+
+
+def _ai_classify_chat(text, today):
+    """聊天记录结构化整理（AI）：主观点 + 分支（qa 问答 / note 补充）"""
+    key = load_api_key()
+    if not key:
+        raise RuntimeError("no api key")
+    prompt = (
+        f"今天是 {today}。下面是一段聊天记录（含主要内容和穿插的提问、补充信息），请结构化整理。\n"
+        "只输出严格 JSON，不要其他文字：\n"
+        '{"topic": 从[' + ",".join(TOPICS) + ']选一个,'
+        ' "priority": "高"|"中"|"低",'
+        ' "period": "短期任务"|"长期计划"|"永久参考",'
+        ' "main_point": "对话核心观点/结论，一句话，不含人名",'
+        ' "branches": [{"type":"qa","q":"问题","a":"解答"} 或 {"type":"note","label":"补充","text":"内容"}],'
+        ' "tags": ["检索关键词"],'
+        ' "due_date": "YYYY-MM-DD"或null,'
+        ' "summary": "不超过20字"}\n'
+        "要求：branches 把提问和补充信息按逻辑归并，去除重复与无关寒暄。\n"
+        f"聊天记录：\n{text[:3000]}"
+    )
+    body = json.dumps({
+        "model": MODELS[0],
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0,
+        "max_tokens": 600,
+    }).encode()
+    req = urllib.request.Request(
+        API_URL, data=body,
+        headers={"Content-Type": "application/json", "Authorization": "Bearer " + key},
+    )
+    with urllib.request.urlopen(req, timeout=40) as r:
+        data = json.loads(r.read())
+    content = data["choices"][0]["message"]["content"]
+    m = re.search(r"\{.*\}", content, re.S)
+    if not m:
+        raise ValueError("no json in reply")
+    raw = json.loads(m.group(0))
+    main_point = str(raw.get("main_point", "")).strip()
+    branches_raw = raw.get("branches") or []
+    d = _normalize(raw, text, today)  # 复用字段归一化（注意 _normalize 会丢弃 main_point/branches）
+    d["main_point"] = main_point
+    clean = []
+    if isinstance(branches_raw, list):
+        for b in branches_raw:
+            if not isinstance(b, dict):
+                continue
+            if b.get("type") == "qa":
+                clean.append({"type": "qa",
+                              "q": str(b.get("q", "")).strip(),
+                              "a": str(b.get("a", "")).strip()})
+            else:
+                clean.append({"type": "note",
+                              "label": str(b.get("label", "补充")).strip(),
+                              "text": str(b.get("text", "")).strip()})
+    d["branches"] = [b for b in clean if (b.get("q") or b.get("a")) or b.get("text")]
+    return d
+
+
+def _rule_classify_chat(text, today=None):
+    """断网降级：主观点=首条，后续行归为补充分支"""
+    today = today or datetime.now().strftime("%Y-%m-%d")
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    strip_spk = lambda s: re.sub(r"^[\u4e00-\u9fa5A-Za-z0-9_]{1,16}[：:]\s*", "", s)
+    main = strip_spk(lines[0]) if lines else text
+    branches = [{"type": "note", "label": "补充", "text": strip_spk(l)}
+                for l in lines[1:] if strip_spk(l)][:20]
+    base = _rule_classify(text, today)
+    base["main_point"] = main
+    base["branches"] = branches
+    return base
+
+
+def classify_chat(text, today=None):
+    """聊天记录结构化整理：AI 优先，失败降级规则"""
+    today = today or datetime.now().strftime("%Y-%m-%d")
+    try:
+        return _ai_classify_chat(text, today)
+    except Exception as e:
+        print(f"[classifier] 聊天记录整理 AI 失败，降级规则: {e}")
+        return _rule_classify_chat(text, today)
+
+
 def classify(text, today=None):
     """统一入口：AI 优先，失败自动降级规则分类"""
     if not text or not text.strip():

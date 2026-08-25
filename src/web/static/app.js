@@ -59,7 +59,7 @@ function cardHTML(c) {
   }
   const tags = (c.tags || "").split(",").filter(Boolean)
     .map((t) => `<span class="tag">${esc(t)}</span>`).join("");
-  const summary = (c.content || "").split("\n")[0];
+  const summary = c.main_point || (c.content || "").split("\n")[0];
   return `<div class="card pri-${esc(c.priority)}" data-id="${c.id}">
     <div class="card-top"><span>${KIND_ICON[c.kind] || "📝"} ${esc(c.source || "")}</span>
       <span>${esc((c.created_at || "").slice(5, 10))}</span></div>
@@ -143,6 +143,27 @@ function render() {
 }
 
 /* ---------- 弹窗 ---------- */
+function renderBranches(c) {
+  let html = "";
+  if (c.main_point) {
+    html += `<div class="kv"><span>主观点</span><span class="main-point">${esc(c.main_point)}</span></div>`;
+  }
+  if (c.branches) {
+    try {
+      const brs = JSON.parse(c.branches);
+      if (Array.isArray(brs) && brs.length) {
+        html += `<div class="kv"><span>分支</span><span class="branches">` + brs.map((b) => {
+          if (b.type === "qa") {
+            return `<div class="br qa"><div class="br-q">❓ ${esc(b.q)}</div><div class="br-a">💡 ${esc(b.a)}</div></div>`;
+          }
+          return `<div class="br note"><div class="br-q">📌 ${esc(b.label || "补充")}</div><div class="br-a">${esc(b.text)}</div></div>`;
+        }).join("") + `</span></div>`;
+      }
+    } catch (e) { /* 忽略损坏 JSON */ }
+  }
+  return html;
+}
+
 function openModal(id) {
   const c = state.cards.find((x) => x.id === id);
   if (!c) return;
@@ -154,8 +175,14 @@ function openModal(id) {
     ? `<img src="/media/${c.media_path.replace(/^media[\\/]/, "")}" alt="media">` : "";
   const file = c.kind === "file" && c.media_path
     ? `<div class="kv"><span>文件</span><span>${esc(c.media_path)}</span></div>` : "";
+  const branchesHtml = renderBranches(c);
+  const isChat = !!c.main_point;
+  const contentHtml = isChat
+    ? `<details class="raw"><summary>查看原始聊天记录</summary><pre>${esc(c.content || "")}</pre></details>`
+    : `<div class="kv"><span>内容</span><span style="white-space:pre-wrap">${esc(c.content || "（无文本）")}</span></div>`;
   $("m-body").innerHTML = `
-    <div class="kv"><span>内容</span><span style="white-space:pre-wrap">${esc(c.content || "（无文本）")}</span></div>
+    ${branchesHtml}
+    ${contentHtml}
     ${img}${file}
     ${c.ocr_text ? `<div class="kv"><span>OCR</span><span class="ocr">${esc(c.ocr_text)}</span></div>` : ""}
     <div class="kv"><span>主题</span><span>${esc(c.topic)}</span></div>

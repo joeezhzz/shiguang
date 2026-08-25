@@ -3,6 +3,7 @@
 - 卡片：文本 / 图片 / 文件三类，统一入库
 - 媒体文件（图片、上传的文件）保存在 data/media/，数据库存相对路径
 - 线程安全（Qt 悬浮窗与 Flask 看板可能同时访问）
+- 聊天记录卡片额外存 main_point（主观点）+ branches（分支 JSON）
 """
 import os
 import re
@@ -41,7 +42,7 @@ def init_db():
                 """CREATE TABLE IF NOT EXISTS cards (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     kind TEXT NOT NULL DEFAULT 'text',      -- text / image / file
-                    content TEXT NOT NULL DEFAULT '',        -- 文本内容或描述
+                    content TEXT NOT NULL DEFAULT '',        -- 文本内容或描述（聊天记录为原文）
                     media_path TEXT,                         -- 相对 data/ 的媒体路径
                     source TEXT DEFAULT '手动',              -- 微信复制/截图/网页/手动
                     topic TEXT DEFAULT '其他',
@@ -52,14 +53,17 @@ def init_db():
                     ocr_text TEXT,                           -- 图片 OCR 结果
                     note TEXT,
                     tags TEXT,                               -- 逗号分隔的建议标签
+                    main_point TEXT,                         -- 聊天记录主观点
+                    branches TEXT,                           -- 分支 JSON：[{type:qa|note,...}]
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )"""
             )
-            # 兼容旧表：补 tags 列
+            # 兼容旧表：补齐新增列
             cols = [r[1] for r in conn.execute("PRAGMA table_info(cards)")]
-            if "tags" not in cols:
-                conn.execute("ALTER TABLE cards ADD COLUMN tags TEXT")
+            for col in ("tags", "main_point", "branches"):
+                if col not in cols:
+                    conn.execute(f"ALTER TABLE cards ADD COLUMN {col} TEXT")
             for col in ("topic", "priority", "status", "due_date"):
                 conn.execute(f"CREATE INDEX IF NOT EXISTS idx_{col} ON cards({col})")
             conn.commit()
@@ -89,17 +93,20 @@ def media_abs_path(rel_path):
 
 def create_card(kind="text", content="", media_path=None, source="手动",
                 topic="其他", priority="中", period="永久参考",
-                due_date=None, status="待处理", ocr_text=None, note=None, tags=None):
+                due_date=None, status="待处理", ocr_text=None, note=None, tags=None,
+                main_point=None, branches=None):
     with _lock:
         conn = _conn()
         try:
             now = _now()
             cur = conn.execute(
                 """INSERT INTO cards (kind, content, media_path, source, topic,
-                   priority, period, due_date, status, ocr_text, note, tags, created_at, updated_at)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                   priority, period, due_date, status, ocr_text, note, tags,
+                   main_point, branches, created_at, updated_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (kind, content, media_path, source, topic, priority,
-                 period, due_date, status, ocr_text, note, tags, now, now),
+                 period, due_date, status, ocr_text, note, tags,
+                 main_point, branches, now, now),
             )
             conn.commit()
             return cur.lastrowid
@@ -118,7 +125,7 @@ def get_card(card_id):
 
 
 def list_cards(topic=None, priority=None, status=None, period=None, q=None):
-    """查询卡片；q 为全文搜索（内容/OCR/备注/标签）"""
+    """查询卡片；q 为全文搜索（内容/OCR/备注/标签/主观点）"""
     sql = "SELECT * FROM cards WHERE 1=1"
     args = []
     if topic:
@@ -130,8 +137,9 @@ def list_cards(topic=None, priority=None, status=None, period=None, q=None):
     if period:
         sql += " AND period=?"; args.append(period)
     if q:
-        sql += " AND (content LIKE ? OR ocr_text LIKE ? OR note LIKE ? OR tags LIKE ?)"
-        args += [f"%{q}%"] * 4
+        sql += (" AND (content LIKE ? OR ocr_text LIKE ? OR note LIKE ? "
+                "OR tags LIKE ? OR main_point LIKE ?)")
+        args += [f"%{q}%"] * 5
     sql += " ORDER BY created_at DESC"
     with _lock:
         conn = _conn()
@@ -145,7 +153,8 @@ def list_cards(topic=None, priority=None, status=None, period=None, q=None):
 def update_card(card_id, **fields):
     """更新指定字段（白名单），返回是否成功"""
     allowed = {"content", "source", "topic", "priority", "period",
-               "due_date", "status", "ocr_text", "note", "tags"}
+               "due_date", "status", "ocr_text", "note", "tags",
+               "main_point", "branches"}
     keys = [k for k in fields if k in allowed]
     if not keys:
         return False
