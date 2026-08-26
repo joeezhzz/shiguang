@@ -123,3 +123,11 @@ select {
 details.raw { margin-top: 8px; font-size: 12px; }
 details.raw summary { cursor: pointer; color: var(--muted); }
 details.raw pre { white-space: pre-wrap; background: #f6f7fa; padding: 8px 10px; border-radius: 6px; font-size: 12px; }
+
+/* 链接 / 文件按钮 */
+.ext-link { color: var(--accent); text-decoration: none; word-break: break-all; }
+.ext-link:hover { text-decoration: underline; }
+.mini-btn { padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px;
+  background: #fff; cursor: pointer; font-size: 12px; margin-left: 8px; }
+.mini-btn:hover { border-color: var(--accent); color: var(--accent); }
+.mini-btn:disabled { opacity: .5; cursor: default; }

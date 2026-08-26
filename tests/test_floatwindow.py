@@ -114,7 +114,67 @@ r = client.delete(f"/api/cards/{cid}")
 check("DELETE 删除", r.status_code == 200 and db.get_card(cid) is None)
 created.pop(0)
 
-print("== 4. 清理 ==")
+print("== 4. 截止时间：用户选择优先（AI 不覆盖） ==")
+win._analyzed = {
+    "kind": "text", "text": "考试通知：明天下午3点高数期中考试，地点汇文楼",
+    "media_path": None, "ocr": None, "chat": False,
+    "cls": {"topic": "学习方法", "priority": "高", "period": "短期任务",
+            "due_date": "2026-08-27", "tags": ["考试"]},
+}
+for b in win.due_group.buttons():
+    if b.text() == "无":
+        b.click()
+        break
+check("点击'无' → due_chosen=True 且 due_days=None",
+      win.due_chosen is True and win.due_days is None)
+p = win._collect_payload(use_ai=True)
+check("选'无' → 入库截止为空（AI 识别不覆盖）", p["due_date"] is None)
+win2 = FloatWindow()
+win2._analyzed = dict(win._analyzed)
+p2 = win2._collect_payload(use_ai=True)
+check("未选择时 → 采纳 AI 识别截止日期", p2["due_date"] == "2026-08-27")
+win.on_cancel()
+
+print("== 5. 微信复制文件：file:// 路径不污染内容 ==")
+import collector.floatwindow as _fw
+_tmpf = os.path.join(_tmp, "wx_copy.docx")
+with open(_tmpf, "wb") as _f:
+    _f.write(b"test")
+_orig_c, _orig_i = _fw.classify, _fw.is_chat
+_fw.classify = lambda t, **k: {"topic": "其他", "priority": "中", "period": "永久参考"}
+_fw.is_chat = lambda t: False
+try:
+    w = _fw.AnalyzeWorker("file:///D:/软件/微信/files/xxx.docx", None, [_tmpf])
+    w.run()
+    check("file:// 文本被替换为文件名", w.text == "wx_copy.docx")
+finally:
+    _fw.classify, _fw.is_chat = _orig_c, _orig_i
+if w.media_path:
+    _mp = db.media_abs_path(w.media_path)
+    if _mp and os.path.exists(_mp):
+        os.remove(_mp)
+
+print("== 6. /api/open 文件打开路由 ==")
+_tf2 = os.path.join(_tmp, "plan.docx")
+with open(_tf2, "wb") as _f:
+    _f.write(b"doc")
+_saved2 = db.save_media(_tf2)
+_fid = db.create_card(kind="file", content="计划文档", media_path=_saved2, source="拖拽")
+_opened = []
+_orig_start = os.startfile
+os.startfile = lambda p: _opened.append(p)
+try:
+    r = client.get(f"/api/open/{_fid}")
+    check("打开成功", r.status_code == 200 and r.get_json()["ok"])
+    check("调用系统关联程序且路径正确",
+          len(_opened) == 1 and os.path.normpath(_opened[0]) == os.path.normpath(db.media_abs_path(_saved2)))
+finally:
+    os.startfile = _orig_start
+r = client.get("/api/open/99999")
+check("不存在的卡片返回404", r.status_code == 404)
+db.delete_card(_fid)
+
+print("== 7. 清理 ==")
 for cid in created:
     db.delete_card(cid)
 check("测试数据清理完毕", db.list_cards(q="社团招新面试") == [] and db.list_cards(q="报名") == [])

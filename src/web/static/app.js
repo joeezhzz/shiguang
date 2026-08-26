@@ -18,11 +18,34 @@ const state = {
 const $ = (id) => document.getElementById(id);
 
 /* ---------- 加载与过滤 ---------- */
+let _sig = "";
+const calcSig = (cards) => cards.map((c) => `${c.id}:${c.updated_at}:${c.status}`).join("|");
+
 async function load() {
   const r = await fetch("/api/cards");
   state.cards = await r.json();
+  _sig = calcSig(state.cards);
   render();
 }
+
+/* 自动刷新：内嵌窗口常驻，新增/修改卡片后 3 秒内自动更新；
+   弹窗打开时只静默更新数据，关闭后再渲染，不打断操作 */
+async function poll() {
+  try {
+    const r = await fetch("/api/cards");
+    const cards = await r.json();
+    const sig = calcSig(cards);
+    if (sig === _sig) return;
+    _sig = sig;
+    state.cards = cards;
+    if (state.current) {
+      const fresh = cards.find((x) => x.id === state.current.id);
+      if (fresh) Object.assign(state.current, fresh);
+    }
+    if ($("modal").classList.contains("hidden")) render();
+  } catch (e) { /* 服务瞬时不可用（如重启）时忽略 */ }
+}
+setInterval(poll, 3000);
 
 function filtered() {
   const q = state.q.trim();
@@ -74,6 +97,14 @@ function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, (m) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   }[m]));
+}
+
+/* 文本中的 URL → 可点击链接（先转义再替换，href 属性安全） */
+function linkify(text) {
+  return esc(text).replace(
+    /(https?:\/\/[^\s<>"'）】。，；！？]+)/g,
+    '<a href="$1" target="_blank" rel="noopener" class="ext-link">$1</a>'
+  );
 }
 
 /* ---------- 看板渲染 ---------- */
@@ -132,6 +163,8 @@ function renderCalendar(list) {
 
 /* ---------- 渲染入口 ---------- */
 function render() {
+  const boardEl = $("board");
+  const st = boardEl.scrollTop;  // 自动刷新时保留滚动位置
   const list = filtered();
   $("count").textContent = `${list.length} / ${state.cards.length} 条`;
   if (state.view === "calendar") {
@@ -139,6 +172,7 @@ function render() {
   } else {
     renderBoard(list);
   }
+  boardEl.scrollTop = st;
   // 卡片点击
   document.querySelectorAll(".card, .cal-chip").forEach((el) => {
     el.onclick = () => openModal(Number(el.dataset.id));
@@ -149,7 +183,7 @@ function render() {
 function renderBranches(c) {
   let html = "";
   if (c.main_point) {
-    html += `<div class="kv"><span>主观点</span><span class="main-point">${esc(c.main_point)}</span></div>`;
+    html += `<div class="kv"><span>主观点</span><span class="main-point">${linkify(c.main_point)}</span></div>`;
   }
   if (c.branches) {
     try {
@@ -157,9 +191,9 @@ function renderBranches(c) {
       if (Array.isArray(brs) && brs.length) {
         html += `<div class="kv"><span>分支</span><span class="branches">` + brs.map((b) => {
           if (b.type === "qa") {
-            return `<div class="br qa"><div class="br-q">❓ ${esc(b.q)}</div><div class="br-a">💡 ${esc(b.a)}</div></div>`;
+            return `<div class="br qa"><div class="br-q">❓ ${linkify(b.q)}</div><div class="br-a">💡 ${linkify(b.a)}</div></div>`;
           }
-          return `<div class="br note"><div class="br-q">📌 ${esc(b.label || "补充")}</div><div class="br-a">${esc(b.text)}</div></div>`;
+          return `<div class="br note"><div class="br-q">📌 ${linkify(b.label || "补充")}</div><div class="br-a">${linkify(b.text)}</div></div>`;
         }).join("") + `</span></div>`;
       }
     } catch (e) { /* 忽略损坏 JSON */ }
@@ -247,12 +281,13 @@ function openModal(id) {
   const img = c.kind === "image" && c.media_path
     ? `<img class="zoomable" src="/media/${c.media_path.replace(/^media[\\/]/, "")}" alt="media" title="点击放大">` : "";
   const file = c.kind === "file" && c.media_path
-    ? `<div class="kv"><span>文件</span><span>${esc(c.media_path)}</span></div>` : "";
+    ? `<div class="kv"><span>文件</span><span>${esc(c.media_path.replace(/^media[\\/]/, ""))}
+        <button id="btn-open-file" class="mini-btn" title="用系统关联程序打开">📂 打开文件</button></span></div>` : "";
   const branchesHtml = renderBranches(c);
   const isChat = !!c.main_point;
   const contentHtml = isChat
-    ? `<details class="raw"><summary>查看原始聊天记录</summary><pre>${esc(c.content || "")}</pre></details>`
-    : `<div class="kv"><span>内容</span><span style="white-space:pre-wrap">${esc(c.content || "（无文本）")}</span></div>`;
+    ? `<details class="raw"><summary>查看原始聊天记录</summary><pre>${linkify(c.content || "")}</pre></details>`
+    : `<div class="kv"><span>内容</span><span style="white-space:pre-wrap">${linkify(c.content || "（无文本）")}</span></div>`;
   $("m-body").innerHTML = `
     ${branchesHtml}
     ${contentHtml}
@@ -266,15 +301,27 @@ function openModal(id) {
     ${c.remind_days != null ? `<div class="kv"><span>提醒</span><span>${c.remind_days < 0 ? "不提醒" : `提前 ${c.remind_days} 天`}</span></div>` : ""}
     <div class="kv"><span>来源</span><span>${esc(c.source)}</span></div>
     <div class="kv"><span>创建</span><span>${esc(c.created_at)}</span></div>
-    ${c.note ? `<div class="kv"><span>备注</span><span>${esc(c.note)}</span></div>` : ""}`;
+    ${c.note ? `<div class="kv"><span>备注</span><span>${linkify(c.note)}</span></div>` : ""}`;
   $("m-status").innerHTML = STATUSES.map((s) => `<option ${s === c.status ? "selected" : ""}>${s}</option>`).join("");
   $("modal").classList.remove("hidden");
   // 图片点击放大
   const imgEl = $("m-body").querySelector("img.zoomable");
   if (imgEl) imgEl.onclick = () => openLightbox(imgEl.src);
+  // 文件打开（本地系统关联程序）
+  const openBtn = $("m-body").querySelector("#btn-open-file");
+  if (openBtn) openBtn.onclick = async () => {
+    openBtn.disabled = true;
+    try {
+      const r = await fetch(`/api/open/${c.id}`);
+      const d = await r.json();
+      if (!d.ok) alert(d.error || "打开失败");
+    } finally {
+      openBtn.disabled = false;
+    }
+  };
 }
 
-function closeModal() { $("modal").classList.add("hidden"); state.current = null; }
+function closeModal() { $("modal").classList.add("hidden"); state.current = null; render(); }
 
 /* 图片放大预览 */
 function openLightbox(src) {

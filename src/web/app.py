@@ -25,6 +25,22 @@ def create_app():
     def media(filename):
         return send_from_directory(db.MEDIA_DIR, filename)
 
+    @app.route("/api/open/<int:cid>")
+    def api_open(cid):
+        """用系统关联程序打开卡片关联的本地文件（Windows os.startfile）"""
+        card = db.get_card(cid)
+        if not card or not card.get("media_path"):
+            return jsonify({"ok": False, "error": "卡片没有关联文件"}), 404
+        rel = card["media_path"].replace("/", os.sep)
+        abs_path = os.path.join(db.DATA_DIR, rel)
+        if not os.path.isfile(abs_path):
+            return jsonify({"ok": False, "error": "文件不存在或已被移动"}), 404
+        try:
+            os.startfile(abs_path)
+            return jsonify({"ok": True})
+        except OSError as e:
+            return jsonify({"ok": False, "error": f"打开失败：{e}"}), 500
+
     @app.route("/api/topics")
     def api_topics():
         return jsonify(db.get_topics())

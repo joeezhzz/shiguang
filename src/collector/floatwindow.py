@@ -57,7 +57,10 @@ class AnalyzeWorker(QThread):
             elif self.files:
                 kind = "file"
                 media_path = db.save_media(self.files[0])
-                self.text = self.text or os.path.basename(self.files[0])
+                # 双保险：微信复制文件时剪贴板文本是 file:// 路径，用文件名代替
+                if not self.text or self.text.startswith("file:///"):
+                    self.text = os.path.basename(self.files[0])
+            self.media_path = media_path  # 供外部/测试访问
             chat = bool(self.text.strip()) and is_chat(self.text)
             cls = classify_chat(self.text) if chat else (classify(self.text) if self.text.strip() else None)
             self.done.emit({
@@ -192,10 +195,12 @@ class FloatWindow(QWidget):
         row3.addWidget(self._mk_label("截止"))
         self.due_group = QButtonGroup(self)
         self.due_days = None
+        self.due_chosen = False  # 用户是否显式选过截止（含"无"）；选过则 AI 识别不覆盖
         for t, d in (("3天", 3), ("1周", 7), ("1月", 30), ("无", None)):
             b = QPushButton(t)
             b.setCheckable(True)
-            b.clicked.connect(lambda _=False, dd=d: setattr(self, "due_days", dd))
+            b.clicked.connect(lambda _=False, dd=d: (setattr(self, "due_days", dd),
+                                                     setattr(self, "due_chosen", True)))
             self.due_group.addButton(b)
             row3.addWidget(b)
         row3.addStretch()
@@ -293,8 +298,11 @@ class FloatWindow(QWidget):
                 self.file_tag.setText("📎 " + "、".join(os.path.basename(u) for u in urls[:3]))
                 self.file_tag.show()
 
-        # 有图片时忽略剪贴板文本（微信复制图片时文本是 file:// 路径，会污染内容字段）
+        # 有图片时忽略剪贴板文本（微信复制图片时文本是 file:// 路径，会污染内容字段）；
+        # 微信复制文件时同理（文本为 file:///D:/... 本地路径，用文件名代替）
         text = cb.text().strip()
+        if self.files and text.startswith("file:///"):
+            text = ""
         if text and not has_image and not self.input.toPlainText().strip():
             self.input.setPlainText(text)
 
@@ -369,9 +377,12 @@ class FloatWindow(QWidget):
         per = self.period_group.checkedButton().text() if self.period_group.checkedButton() else (
             cls.get("period") if use_ai else "永久参考")
         due = None
-        if self.due_days:
-            due = (datetime.now() + timedelta(days=self.due_days)).strftime("%Y-%m-%d")
-        if not due and use_ai:
+        if self.due_chosen:
+            # 用户显式选过截止（含"无"）→ 完全尊重用户选择，AI 识别不覆盖
+            if self.due_days:
+                due = (datetime.now() + timedelta(days=self.due_days)).strftime("%Y-%m-%d")
+        elif use_ai:
+            # 用户未主动选 → 采纳 AI 识别出的截止日期
             due = cls.get("due_date")
         payload = {
             "kind": a.get("kind", "text"),
@@ -436,6 +447,7 @@ class FloatWindow(QWidget):
                 g.checkedButton().setChecked(False)
                 g.setExclusive(True)
         self.due_days = None
+        self.due_chosen = False
         self._analyzed = None
         self.input.setEnabled(True)
         self._set_mode("edit")

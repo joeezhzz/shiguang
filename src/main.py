@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (QApplication, QSystemTrayIcon, QMenu, QWidget,
                                QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                                QCheckBox, QSpinBox, QPushButton)
 from PySide6.QtWebEngineWidgets import QWebEngineView
+from PySide6.QtWebEngineCore import QWebEnginePage
 
 from storage import db
 from collector.floatwindow import FloatWindow
@@ -77,6 +78,16 @@ def make_icon():
     return QIcon(pm)
 
 
+class BoardPage(QWebEnginePage):
+    """看板页：拦截外部链接点击，交给系统默认浏览器打开（内嵌窗口始终保持看板）"""
+
+    def acceptNavigationRequest(self, url, nav_type, is_main_frame):
+        if url.scheme() in ("http", "https") and nav_type == QWebEnginePage.NavigationTypeLinkClicked:
+            webbrowser.open(url.toString())
+            return False
+        return super().acceptNavigationRequest(url, nav_type, is_main_frame)
+
+
 class BoardWindow(QWidget):
     """看板窗口：QtWebEngine 内嵌本地看板（浏览器全程不出现）"""
 
@@ -88,6 +99,10 @@ class BoardWindow(QWidget):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         self.web = QWebEngineView(self)
+        self.web.setPage(BoardPage(self.web))
+        # target=_blank 的新窗口请求 → 系统默认浏览器打开
+        self.web.page().newWindowRequested.connect(
+            lambda req: webbrowser.open(req.requestedUrl().toString()))
         lay.addWidget(self.web)
         self.web.load(QUrl(url))
 
