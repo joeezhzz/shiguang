@@ -183,7 +183,9 @@ function render() {
 function renderBranches(c) {
   let html = "";
   if (c.main_point) {
-    html += `<div class="kv"><span>主观点</span><span class="main-point">${linkify(c.main_point)}</span></div>`;
+    // 聊天记录（有分支）显示「主观点」，普通/链接卡显示「标题」
+    const label = c.branches ? "主观点" : "标题";
+    html += `<div class="kv"><span>${label}</span><span class="main-point">${linkify(c.main_point)}</span></div>`;
   }
   if (c.branches) {
     try {
@@ -284,7 +286,8 @@ function openModal(id) {
     ? `<div class="kv"><span>文件</span><span>${esc(c.media_path.replace(/^media[\\/]/, ""))}
         <button id="btn-open-file" class="mini-btn" title="用系统关联程序打开">📂 打开文件</button></span></div>` : "";
   const branchesHtml = renderBranches(c);
-  const isChat = !!c.main_point;
+  // 有分支（branches）才是聊天记录；普通/链接卡的 main_point 只作标题，不折叠原文
+  const isChat = !!c.branches;
   const contentHtml = isChat
     ? `<details class="raw"><summary>查看原始聊天记录</summary><pre>${linkify(c.content || "")}</pre></details>`
     : `<div class="kv"><span>内容</span><span style="white-space:pre-wrap">${linkify(c.content || "（无文本）")}</span></div>`;

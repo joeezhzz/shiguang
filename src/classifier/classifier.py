@@ -41,12 +41,13 @@ def _ai_classify(text, today):
         raise RuntimeError("no api key")
     prompt = (
         f"今天是 {today}。用户把一条信息发给你，请归类。\n"
-        "只输出严格 JSON，不要其他任何文字：\n"
+        "只输出严格 JSON，不要其他文字：\n"
         '{"topic": 从[' + ",".join(TOPICS) + ']选一个,'
         ' "priority": "高"|"中"|"低",'
         ' "period": "短期任务"|"长期计划"|"永久参考",'
         ' "tags": ["标签1","标签2"],'
         ' "due_date": "YYYY-MM-DD"或null（从原文推断截止日期，用今天的年份）,'
+        ' "main_point": "卡片标题：若含网址填文章标题，否则填一句话核心要点，不超过20字，不要人名",'
         ' "summary": "不超过20字"}\n'
         f"信息内容：{text[:2000]}"
     )
@@ -66,7 +67,10 @@ def _ai_classify(text, today):
     m = re.search(r"\{.*\}", content, re.S)
     if not m:
         raise ValueError("no json in reply")
-    return _normalize(json.loads(m.group(0)), text, today)
+    raw = json.loads(m.group(0))
+    d = _normalize(raw, text, today)
+    d["main_point"] = str(raw.get("main_point", "")).strip() or None
+    return d
 
 
 def _normalize(d, text, today):
@@ -118,8 +122,18 @@ def _rule_classify(text, today=None):
     else:
         priority, period = "中", "永久参考"
     due = parse_due(text, datetime.strptime(today, "%Y-%m-%d"))
+    # 降级标题：含网址时取网址前一行（通常是文章标题）
+    mp = None
+    if "http://" in text or "https://" in text:
+        lines = [l.strip() for l in text.splitlines() if l.strip()]
+        for i, l in enumerate(lines):
+            if l.startswith("http://") or l.startswith("https://"):
+                if i > 0 and not re.match(r"^[\u4e00-\u9fa5A-Za-z0-9_]{1,16}[：:]\s*\S", lines[i - 1]):
+                    mp = lines[i - 1][:30]
+                break
     return {"topic": topic, "priority": priority, "period": period,
-            "tags": [topic], "due_date": due, "summary": text[:20]}
+            "tags": [topic], "due_date": due, "summary": text[:20],
+            "main_point": mp}
 
 
 def is_chat(text):

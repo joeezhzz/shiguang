@@ -357,7 +357,8 @@ class FloatWindow(QWidget):
         elif result.get("kind") == "image":
             self.result_view.setPlainText("🖼 图片已就绪（不做文字识别）\n请在下方设置主题、重要度等分类")
         else:
-            self.result_view.setPlainText(f"📝 摘要：{cls.get('summary') or '（无文本摘要）'}")
+            t = cls.get("main_point") or cls.get("summary")
+            self.result_view.setPlainText(f"📝 摘要：{t or '（无文本摘要）'}")
         self.topic_combo.setCurrentText(cls.get("topic") or "其他")
         self.suggest.setText(f"AI 分类：{cls.get('topic', '其他')} · {cls.get('priority', '中')} · "
                              f"{cls.get('period', '永久参考')} · 截止 {cls.get('due_date') or '无'}")
@@ -397,8 +398,10 @@ class FloatWindow(QWidget):
         }
         if use_ai:
             payload["tags"] = ",".join(cls.get("tags", [])) or None
-            if a.get("chat"):
+            # 卡片标题（链接卡=文章标题，普通卡=一句话要点；聊天卡=主观点）
+            if cls.get("main_point"):
                 payload["main_point"] = cls.get("main_point")
+            if a.get("chat"):
                 payload["branches"] = json.dumps(cls.get("branches"), ensure_ascii=False) \
                     if cls.get("branches") else None
         return payload
