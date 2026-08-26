@@ -11,6 +11,7 @@
 import os
 import sys
 import ctypes
+import socket
 import threading
 import webbrowser
 
@@ -20,7 +21,7 @@ from PySide6.QtCore import Qt, QTimer, QUrl
 from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont, QPainterPath
 from PySide6.QtWidgets import (QApplication, QSystemTrayIcon, QMenu, QWidget,
                                QDialog, QVBoxLayout, QHBoxLayout, QLabel,
-                               QCheckBox, QSpinBox, QPushButton)
+                               QCheckBox, QSpinBox, QPushButton, QMessageBox)
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
 
@@ -29,6 +30,19 @@ from collector.floatwindow import FloatWindow
 from reminder import Reminder
 
 PORT = 8765
+
+
+def _port_in_use(port):
+    """检测本机端口是否已被监听（用于单实例检测）"""
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(0.3)
+    try:
+        s.connect(("127.0.0.1", port))
+        s.close()
+        return True
+    except OSError:
+        return False
+
 
 # 全局热键：Ctrl+Shift+V
 HOTKEY = {"ctrl": 0x11, "shift": 0x10, "key": 0x56}
@@ -177,6 +191,11 @@ def main():
     # QtWebEngine 持久化 profile：让看板的 localStorage（如主题选择）重启后不丢
     QWebEngineProfile.defaultProfile().setPersistentStoragePath(
         os.path.join(db.DATA_DIR, "webprofile"))
+
+    # 单实例检测：避免重复启动导致端口冲突（重复启动时提示并退出）
+    if _port_in_use(PORT):
+        QMessageBox.information(None, "拾光", "拾光已在运行中，请查看系统托盘图标。")
+        return
 
     # 本地看板服务（后台线程）
     threading.Thread(target=start_web, daemon=True).start()
