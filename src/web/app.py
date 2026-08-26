@@ -11,6 +11,14 @@ from storage import db
 def create_app():
     app = Flask(__name__, static_folder="static", static_url_path="/static")
 
+    @app.after_request
+    def _no_cache(resp):
+        # 内嵌窗口（QtWebEngine）会缓存静态文件，禁用缓存确保 UI 改动即时生效
+        if request.path == "/" or request.path.startswith("/static/"):
+            resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            resp.headers["Pragma"] = "no-cache"
+        return resp
+
     @app.route("/")
     def index():
         return app.send_static_file("index.html")

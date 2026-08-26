@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>拾光 · UI 设计方案对比</title>
+<style>
+  :root{
+    --prose-bg:#14161a; --prose-text:#e8eaf0; --prose-muted:#8b90a0;
+    --prose-border:#262a32;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--prose-bg);color:var(--prose-text);
+    font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;
+    padding:40px 28px 60px;}
+  .prose-head{max-width:1200px;margin:0 auto 10px}
+  .prose-head h1{font-size:26px;font-weight:700;letter-spacing:.5px}
+  .prose-head p{color:var(--prose-muted);font-size:13px;margin-top:8px;line-height:1.7}
+  .grid{max-width:1200px;margin:30px auto 0;display:flex;gap:22px;align-items:stretch;flex-wrap:wrap}
+  .dir{flex:1;min-width:330px;background:#1b1e24;border:1px solid var(--prose-border);
+    border-radius:16px;overflow:hidden;display:flex;flex-direction:column}
+  .dir-head{padding:18px 20px 14px}
+  .dir-head .tag{font-size:11px;letter-spacing:2px;color:var(--prose-muted)}
+  .dir-head h2{font-size:19px;font-weight:700;margin:6px 0 6px}
+  .dir-head .desc{font-size:12.5px;color:var(--prose-muted);line-height:1.7}
+  .dir-head .memory{margin-top:10px;font-size:12px;color:#c9a35c;line-height:1.6}
+  .swatches{display:flex;padding:0 20px 14px;gap:6px}
+  .sw{flex:1;height:34px;border-radius:8px;position:relative}
+  .sw span{position:absolute;bottom:3px;left:0;right:0;text-align:center;
+    font-size:8.5px;color:rgba(255,255,255,.9);text-shadow:0 1px 2px rgba(0,0,0,.5);
+    letter-spacing:.5px}
+  .frame{flex:1;margin:0 14px 14px;border-radius:12px;overflow:hidden;
+    border:1px solid rgba(0,0,0,.08)}
+  /* ===== 方向 A：暖白晨光 ===== */
+  .frameA{background:#f7f5f1}
+  .frameA .hdr{background:#fff;border-bottom:1px solid #eae7e0;padding:9px 12px;
+    display:flex;align-items:center;gap:8px}
+  .frameA .brand{font-size:13px;font-weight:700;color:#2b2926}
+  .frameA .q{flex:1;max-width:150px;font-size:11px;color:#97928a;background:#f2efe9;
+    border-radius:12px;padding:4px 10px}
+  .frameA .sw2{display:flex;gap:4px}
+  .frameA .sw2 i{font-size:9px;font-style:normal;color:#97928a;border:1px solid #eae7e0;
+    border-radius:6px;padding:3px 6px}
+  .frameA .sw2 i.on{background:#c68a3c;border-color:#c68a3c;color:#fff}
+  .frameA .cols{display:flex;gap:8px;padding:10px 12px}
+  .frameA .col{flex:1;background:#eeece6;border-radius:8px;padding:6px}
+  .frameA .col h4{font-size:9.5px;color:#97928a;font-weight:600;margin:2px 4px 6px;
+    display:flex;justify-content:space-between}
+  .frameA .card{background:#fff;border-radius:8px;padding:7px 9px;margin-bottom:6px;
+    border-left:3px solid #c68a3c;box-shadow:0 1px 3px rgba(60,50,30,.07)}
+  .frameA .card.pm{border-left-color:#d9a03f}
+  .frameA .card.pl{border-left-color:#6fae7f}
+  .frameA .card .ct{font-size:9.5px;color:#2b2926;line-height:1.5;overflow:hidden;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .frameA .card .tag{display:inline-block;font-size:8px;margin-top:4px;padding:1px 5px;
+    border-radius:6px;background:#f6eee2;color:#a9782e}
+  .frameA .card .due{font-size:8px;color:#c0392b;margin-top:3px}
+  /* ===== 方向 B：冷调工作台 ===== */
+  .frameB{background:#f5f6f8}
+  .frameB .hdr{background:#fff;border-bottom:1px solid #e6e8ee;padding:9px 12px;
+    display:flex;align-items:center;gap:8px}
+  .frameB .brand{font-size:13px;font-weight:700;color:#1f2430;letter-spacing:.3px}
+  .frameB .q{flex:1;max-width:150px;font-size:11px;color:#8a919f;background:#f3f4f7;
+    border:1px solid #e6e8ee;border-radius:8px;padding:4px 10px}
+  .frameB .sw2{display:flex;gap:4px}
+  .frameB .sw2 i{font-size:9px;font-style:normal;color:#8a919f;border:1px solid #e6e8ee;
+    border-radius:6px;padding:3px 6px}
+  .frameB .sw2 i.on{background:#4f6ef7;border-color:#4f6ef7;color:#fff}
+  .frameB .cols{display:flex;gap:8px;padding:10px 12px}
+  .frameB .col{flex:1;background:#edeff3;border-radius:8px;padding:6px}
+  .frameB .col h4{font-size:9.5px;color:#8a919f;font-weight:600;margin:2px 4px 6px;
+    display:flex;justify-content:space-between}
+  .frameB .card{background:#fff;border-radius:8px;padding:7px 9px;margin-bottom:6px;
+    border-left:3px solid #4f6ef7;box-shadow:0 1px 2px rgba(20,30,60,.06)}
+  .frameB .card.pm{border-left-color:#e8a33d}
+  .frameB .card.pl{border-left-color:#4fae6a}
+  .frameB .card .ct{font-size:9.5px;color:#1f2430;line-height:1.5;overflow:hidden;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .frameB .card .tag{display:inline-block;font-size:8px;margin-top:4px;padding:1px 5px;
+    border-radius:6px;background:#eef1fe;color:#3d50c5}
+  .frameB .card .due{font-size:8px;color:#e05656;margin-top:3px}
+  /* ===== 方向 C：深夜拾光 ===== */
+  .frameC{background:#131519}
+  .frameC .hdr{background:#1a1d23;border-bottom:1px solid #2a2e37;padding:9px 12px;
+    display:flex;align-items:center;gap:8px}
+  .frameC .brand{font-size:13px;font-weight:700;color:#e8eaf0}
+  .frameC .q{flex:1;max-width:150px;font-size:11px;color:#7c8290;background:#1f232a;
+    border-radius:8px;padding:4px 10px}
+  .frameC .sw2{display:flex;gap:4px}
+  .frameC .sw2 i{font-size:9px;font-style:normal;color:#8b90a0;border:1px solid #2a2e37;
+    border-radius:6px;padding:3px 6px}
+  .frameC .sw2 i.on{background:#f0b65a;border-color:#f0b65a;color:#131519}
+  .frameC .cols{display:flex;gap:8px;padding:10px 12px}
+  .frameC .col{flex:1;background:#181b21;border-radius:8px;padding:6px}
+  .frameC .col h4{font-size:9.5px;color:#7c8290;font-weight:600;margin:2px 4px 6px;
+    display:flex;justify-content:space-between}
+  .frameC .card{background:#1d2026;border-radius:8px;padding:7px 9px;margin-bottom:6px;
+    border-left:3px solid #f0b65a;box-shadow:0 1px 3px rgba(0,0,0,.4)}
+  .frameC .card.pm{border-left-color:#d9a03f}
+  .frameC .card.pl{border-left-color:#6fae7f}
+  .frameC .card .ct{font-size:9.5px;color:#e8eaf0;line-height:1.5;overflow:hidden;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .frameC .card .tag{display:inline-block;font-size:8px;margin-top:4px;padding:1px 5px;
+    border-radius:6px;background:#2a2a1f;color:#d9a03f}
+  .frameC .card .due{font-size:8px;color:#e5695a;margin-top:3px}
+</style>
+</head>
+<body>
+<div class="prose-head">
+  <h1>拾光 · UI 设计方案</h1>
+  <p>用你的真实卡片数据渲染的三个视觉方向。每个方向都遵循「简洁 + 克制 + 高级」的原则，
+    区别在于色温、情绪和「一个记忆点」。看实际观感后告诉我选哪个（或想怎么混合）。</p>
+</div>
+
+<div class="grid">
+
+  <!-- 方向 A -->
+  <div class="dir">
+    <div class="dir-head">
+      <div class="tag">方向 A · 温暖</div>
+      <h2>暖白晨光</h2>
+      <div class="desc">暖米白纸张底色 + 温润墨色文字 + 琥珀金点缀。像清晨摊开一本笔记，安静、有书卷气。呼应「拾光」= 拾取时光碎片的温暖感。</div>
+      <div class="memory">记忆点：卡片左缘一条琥珀金「书签线」，hover 时柔和上浮。</div>
+    </div>
+    <div class="swatches">
+      <div class="sw" style="background:#f7f5f1"><span>底</span></div>
+      <div class="sw" style="background:#ffffff;border:1px solid #eae7e0"><span>卡</span></div>
+      <div class="sw" style="background:#2b2926"><span>字</span></div>
+      <div class="sw" style="background:#c68a3c"><span>强调</span></div>
+      <div class="sw" style="background:#d96c5c"><span>高</span></div>
+      <div class="sw" style="background:#6fae7f"><span>低</span></div>
+    </div>
+    <div class="frame frameA">
+      <div class="hdr"><span class="brand">📥 拾光</span><span class="q">🔍 搜索</span>
+        <span class="sw2"><i class="on">状态</i><i>主题</i><i>📅</i></span></div>
+      <div class="cols">
+        <div class="col"><h4>待处理 <b>2</b></h4>
+          <div class="card"><div class="ct">学长分享：考研英语单词用艾宾浩斯记忆法，每天早晚各背30分钟</div><span class="tag">学习方法</span></div>
+          <div class="card pm"><div class="ct">保研经验分享讲座：10月12日晚7点 物光楼报告厅</div><span class="tag">考研保研</span><div class="due">⏰ 剩 47 天</div></div>
+        </div>
+        <div class="col"><h4>进行中 <b>1</b></h4>
+          <div class="card pl"><div class="ct">宿舍收纳小妙招：挂钩+收纳盒分层，一周清理一次</div><span class="tag">生活小妙招</span></div>
+        </div>
+        <div class="col"><h4>已完成 <b>1</b></h4>
+          <div class="card pl"><div class="ct">物理竞赛报名流程已确认</div><span class="tag">竞赛</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 方向 B -->
+  <div class="dir">
+    <div class="dir-head">
+      <div class="tag">方向 B · 理性</div>
+      <h2>冷调工作台</h2>
+      <div class="desc">冷灰白底 + 靛蓝强调 + 更锐利的几何边框。像 Linear / Notion 那种现代工具感，冷静、清晰、精准，节奏感强。</div>
+      <div class="memory">记忆点：克制的靛蓝 + 极细分隔线，靠间距节奏撑起高级感。</div>
+    </div>
+    <div class="swatches">
+      <div class="sw" style="background:#f5f6f8"><span>底</span></div>
+      <div class="sw" style="background:#ffffff;border:1px solid #e6e8ee"><span>卡</span></div>
+      <div class="sw" style="background:#1f2430"><span>字</span></div>
+      <div class="sw" style="background:#4f6ef7"><span>强调</span></div>
+      <div class="sw" style="background:#e05656"><span>高</span></div>
+      <div class="sw" style="background:#4fae6a"><span>低</span></div>
+    </div>
+    <div class="frame frameB">
+      <div class="hdr"><span class="brand">📥 拾光</span><span class="q">🔍 搜索</span>
+        <span class="sw2"><i class="on">状态</i><i>主题</i><i>📅</i></span></div>
+      <div class="cols">
+        <div class="col"><h4>待处理 <b>2</b></h4>
+          <div class="card"><div class="ct">学长分享：考研英语单词用艾宾浩斯记忆法，每天早晚各背30分钟</div><span class="tag">学习方法</span></div>
+          <div class="card pm"><div class="ct">保研经验分享讲座：10月12日晚7点 物光楼报告厅</div><span class="tag">考研保研</span><div class="due">⏰ 剩 47 天</div></div>
+        </div>
+        <div class="col"><h4>进行中 <b>1</b></h4>
+          <div class="card pl"><div class="ct">宿舍收纳小妙招：挂钩+收纳盒分层，一周清理一次</div><span class="tag">生活小妙招</span></div>
+        </div>
+        <div class="col"><h4>已完成 <b>1</b></h4>
+          <div class="card pl"><div class="ct">物理竞赛报名流程已确认</div><span class="tag">竞赛</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 方向 C -->
+  <div class="dir">
+    <div class="dir-head">
+      <div class="tag">方向 C · 沉浸</div>
+      <h2>深夜拾光</h2>
+      <div class="desc">深蓝黑底 + 暖金光点。像夜里整理白天拾到的光，沉浸、专注，光点在深色里最亮。适合夜间使用。</div>
+      <div class="memory">记忆点：深色中卡片 hover 浮现柔和的暖金光晕——「夜里拾光」。</div>
+    </div>
+    <div class="swatches">
+      <div class="sw" style="background:#131519"><span>底</span></div>
+      <div class="sw" style="background:#1d2026"><span>卡</span></div>
+      <div class="sw" style="background:#e8eaf0"><span>字</span></div>
+      <div class="sw" style="background:#f0b65a"><span>强调</span></div>
+      <div class="sw" style="background:#e5695a"><span>高</span></div>
+      <div class="sw" style="background:#6fae7f"><span>低</span></div>
+    </div>
+    <div class="frame frameC">
+      <div class="hdr"><span class="brand">📥 拾光</span><span class="q">🔍 搜索</span>
+        <span class="sw2"><i class="on">状态</i><i>主题</i><i>📅</i></span></div>
+      <div class="cols">
+        <div class="col"><h4>待处理 <b>2</b></h4>
+          <div class="card"><div class="ct">学长分享：考研英语单词用艾宾浩斯记忆法，每天早晚各背30分钟</div><span class="tag">学习方法</span></div>
+          <div class="card pm"><div class="ct">保研经验分享讲座：10月12日晚7点 物光楼报告厅</div><span class="tag">考研保研</span><div class="due">⏰ 剩 47 天</div></div>
+        </div>
+        <div class="col"><h4>进行中 <b>1</b></h4>
+          <div class="card pl"><div class="ct">宿舍收纳小妙招：挂钩+收纳盒分层，一周清理一次</div><span class="tag">生活小妙招</span></div>
+        </div>
+        <div class="col"><h4>已完成 <b>1</b></h4>
+          <div class="card pl"><div class="ct">物理竞赛报名流程已确认</div><span class="tag">竞赛</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (QApplication, QSystemTrayIcon, QMenu, QWidget,
                                QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                                QCheckBox, QSpinBox, QPushButton)
 from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtWebEngineCore import QWebEnginePage
+from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
 
 from storage import db
 from collector.floatwindow import FloatWindow
@@ -173,6 +173,10 @@ def main():
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     app.setWindowIcon(make_icon())
+
+    # QtWebEngine 持久化 profile：让看板的 localStorage（如主题选择）重启后不丢
+    QWebEngineProfile.defaultProfile().setPersistentStoragePath(
+        os.path.join(db.DATA_DIR, "webprofile"))
 
     # 本地看板服务（后台线程）
     threading.Thread(target=start_web, daemon=True).start()

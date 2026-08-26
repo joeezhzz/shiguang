@@ -376,6 +376,26 @@ function syncSwitch() {
   $("sw-calendar").classList.toggle("active", state.view === "calendar");
 }
 
+/* ---------- 主题切换（浅色暖白 / 深色拾光） ---------- */
+function applyTheme(t) {
+  const dark = t === "dark";
+  document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+  $("theme-toggle").textContent = dark ? "☀️" : "🌙";
+  try { localStorage.setItem("shiguang-theme", t); } catch (e) {}
+  // 背景氛围：白天落花 / 夜里流星
+  if (window.__setBgMode) window.__setBgMode(dark ? "meteor" : "flower");
+}
+
+function bindTheme() {
+  $("theme-toggle").onclick = () => {
+    const cur = document.documentElement.getAttribute("data-theme");
+    applyTheme(cur === "dark" ? "light" : "dark");
+  };
+  let saved = "light";
+  try { saved = localStorage.getItem("shiguang-theme") || "light"; } catch (e) {}
+  applyTheme(saved);
+}
+
 function initSelects() {
   $("f-topic").innerHTML = `<option value="">全部主题</option>` + TOPICS.map((t) => `<option>${t}</option>`).join("");
   $("f-priority").innerHTML = `<option value="">全部重要度</option>` + PRIORITIES.map((p) => `<option>${p}</option>`).join("");
@@ -385,5 +405,6 @@ function initSelects() {
 
 initSelects();
 bind();
+bindTheme();
 loadTopics();
 load();
