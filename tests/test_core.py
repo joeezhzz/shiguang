@@ -11,6 +11,7 @@ _tmp = tempfile.mkdtemp(prefix="shiguang_test_")
 db.DATA_DIR = _tmp
 db.DB_PATH = os.path.join(_tmp, "test.db")
 db.MEDIA_DIR = os.path.join(_tmp, "media")
+db.SETTINGS_PATH = os.path.join(_tmp, "settings.json")  # 防污染真实设置
 db.init_db()
 
 from classifier.classifier import classify, _rule_classify

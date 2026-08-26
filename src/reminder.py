@@ -40,8 +40,10 @@ class Reminder(QObject):
             if not due or card.get("status") in DONE_STATUSES:
                 continue
             days = card.get("remind_days")
-            if days is None:
+            if days is None or days == "":
                 days = int(settings.get("remind_days", 1))
+            else:
+                days = int(days)  # 兼容 ALTER 加的 TEXT 列（读出为字符串）
             if days < 0:
                 continue  # 该卡不提醒
             try:
@@ -55,7 +57,10 @@ class Reminder(QObject):
 
     def tick(self):
         today = date.today().strftime("%Y-%m-%d")
-        for card, left in self.check(today):
+        due = self.check(today)
+        if due:
+            print(f"[提醒] {today} 检查到 {len(due)} 条待提醒卡片", flush=True)
+        for card, left in due:
             db.update_card(card["id"], last_remind=today)
             if self.tray:
                 summary = (card.get("main_point") or card.get("content") or "").split("\n")[0]

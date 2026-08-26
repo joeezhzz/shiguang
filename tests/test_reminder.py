@@ -12,6 +12,7 @@ _tmp = tempfile.mkdtemp(prefix="shiguang_test_")
 db.DATA_DIR = _tmp
 db.DB_PATH = os.path.join(_tmp, "test.db")
 db.MEDIA_DIR = os.path.join(_tmp, "media")
+db.SETTINGS_PATH = os.path.join(_tmp, "settings.json")  # 关键：防止污染真实设置
 db.init_db()
 
 from reminder import Reminder
@@ -67,6 +68,10 @@ check("到期当天提醒", sum(1 for c, _ in res if c["due_date"] == "2026-08-2
 cid2 = mk("2026-08-26", 1, content="剩余天数")
 left = [x for x in r.check(TODAY) if x[0]["id"] == cid2]
 check("剩余天数计算=1", bool(left) and left[0][1] == 1)
+
+mk("2026-08-26", "1", content="字符串天数兼容")  # 模拟真实库 ALTER 加的 TEXT 列
+res = r.check(TODAY)
+check("字符串提前天数兼容", any(c["content"] == "字符串天数兼容" for c, _ in res))
 
 db.save_settings({"remind_enabled": False, "remind_days": 1})
 res = r.check(TODAY)
