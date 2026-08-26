@@ -46,3 +46,4 @@ user32.SetForegroundWindow(hwnd)
 3. **窗口可见性诊断**：Qt 的 `isVisible()` 和 Windows 的 `IsWindowVisible`/`WS_VISIBLE` 都可能误导（Qt 6 合成渲染），最可靠的是截屏 + OCR 看实际屏幕
 4. **单实例检测**：端口检测有时序漏洞（多个实例同时启动都能通过），QSharedMemory 命名内存才可靠
 5. **日志落盘**：脱离终端运行的程序，日志要写到文件（`data/run.log`），这是唯一的排查手段
+6. **不要基于假设修 bug**：曾为修"白屏"加 `--disable-gpu` 软件渲染，但真凶是前台锁定（遮挡）；软件渲染反而破坏 QtWebEngine 页面交互（图片/链接/文件点击无响应），移除后恢复。诊断必须基于事实（截屏/OCR/日志），先确认根因再动手

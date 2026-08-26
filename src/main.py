@@ -9,10 +9,6 @@
 且零依赖、无消息循环依赖、跨 Qt 版本稳定。
 """
 import os
-# 关键：vbs 隐藏窗口（SW_HIDE）启动环境下，QtWebEngine 硬件加速可能初始化失败导致看板白屏，
-# 必须在 QWebEngine 初始化前禁用 GPU、改用软件渲染
-os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", "--disable-gpu")
-os.environ.setdefault("QT_OPENGL", "software")
 import sys
 import ctypes
 import threading
