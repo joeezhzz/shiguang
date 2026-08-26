@@ -9,15 +9,18 @@
 且零依赖、无消息循环依赖、跨 Qt 版本稳定。
 """
 import os
+# 关键：vbs 隐藏窗口（SW_HIDE）启动环境下，QtWebEngine 硬件加速可能初始化失败导致看板白屏，
+# 必须在 QWebEngine 初始化前禁用 GPU、改用软件渲染
+os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", "--disable-gpu")
+os.environ.setdefault("QT_OPENGL", "software")
 import sys
 import ctypes
-import socket
 import threading
 import webbrowser
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from PySide6.QtCore import Qt, QTimer, QUrl
+from PySide6.QtCore import Qt, QTimer, QUrl, QSharedMemory
 from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont, QPainterPath
 from PySide6.QtWidgets import (QApplication, QSystemTrayIcon, QMenu, QWidget,
                                QDialog, QVBoxLayout, QHBoxLayout, QLabel,
@@ -29,19 +32,28 @@ from storage import db
 from collector.floatwindow import FloatWindow
 from reminder import Reminder
 
+class _Tee:
+    """把输出同时写到多个流（用于把日志追加到文件，便于脱离终端时排查）"""
+    def __init__(self, *streams):
+        self._streams = streams
+
+    def write(self, data):
+        for s in self._streams:
+            try:
+                s.write(data)
+                s.flush()  # 立即落盘，方便脱离终端时实时排查
+            except Exception:
+                pass
+
+    def flush(self):
+        for s in self._streams:
+            try:
+                s.flush()
+            except Exception:
+                pass
+
+
 PORT = 8765
-
-
-def _port_in_use(port):
-    """检测本机端口是否已被监听（用于单实例检测）"""
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.settimeout(0.3)
-    try:
-        s.connect(("127.0.0.1", port))
-        s.close()
-        return True
-    except OSError:
-        return False
 
 
 # 全局热键：Ctrl+Shift+V
@@ -125,9 +137,24 @@ class BoardWindow(QWidget):
         self.hide()  # 关闭=隐藏，程序常驻托盘
 
     def show_board(self):
+        print(f"[拾光] 打开看板 before: visible={self.isVisible()}", flush=True)
         self.show()
         self.raise_()
         self.activateWindow()
+        # 绕过 Windows「前台锁定」：后台启动的进程（如 vbs 独立运行）激活窗口会被系统阻止，
+        # 导致看板被其他窗口遮挡看不到。用原生 API 强制显示/置顶/前台。
+        try:
+            hwnd = int(self.winId())
+            user32 = ctypes.windll.user32
+            user32.ShowWindow(hwnd, 5)                       # SW_SHOW
+            user32.SetWindowPos(hwnd, 0, 0, 0, 0, 0, 0x0001 | 0x0002)  # HWND_TOP + NOSIZE + NOMOVE
+            user32.SetForegroundWindow(hwnd)
+        except Exception as e:
+            print(f"[拾光] 强制置顶失败: {e}", flush=True)
+        QTimer.singleShot(800, lambda: print(
+            f"[拾光] 看板状态 after: visible={self.isVisible()} "
+            f"size={self.width()}x{self.height()} pos={self.x()},{self.y()} "
+            f"web_loaded={self.web.isVisible()}", flush=True))
 
 
 class SettingsDialog(QDialog):
@@ -184,6 +211,14 @@ def start_web():
 
 
 def main():
+    # 日志写到 data/run.log（脱离终端运行时也能排查问题）
+    try:
+        _log = open(os.path.join(db.DATA_DIR, "run.log"), "a", encoding="utf-8")
+        sys.stdout = _Tee(sys.stdout, _log)
+        sys.stderr = _Tee(sys.stderr, _log)
+    except OSError:
+        pass
+
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     app.setWindowIcon(make_icon())
@@ -192,10 +227,12 @@ def main():
     QWebEngineProfile.defaultProfile().setPersistentStoragePath(
         os.path.join(db.DATA_DIR, "webprofile"))
 
-    # 单实例检测：避免重复启动导致端口冲突（重复启动时提示并退出）
-    if _port_in_use(PORT):
+    # 单实例检测（QSharedMemory，可靠且不依赖端口时序）
+    _sm = QSharedMemory("ShiguangSingleInstance")
+    if not _sm.create(1):
         QMessageBox.information(None, "拾光", "拾光已在运行中，请查看系统托盘图标。")
         return
+    app._single_instance = _sm  # 保持引用，防止被回收
 
     # 本地看板服务（后台线程）
     threading.Thread(target=start_web, daemon=True).start()
@@ -235,14 +272,20 @@ def main():
     act_browser.triggered.connect(lambda: webbrowser.open(f"http://127.0.0.1:{PORT}"))
     act_quit.triggered.connect(app.quit)
     tray.setContextMenu(menu)
-    tray.activated.connect(lambda reason: show_board()
-                           if reason == QSystemTrayIcon.DoubleClick else None)
+
+    # 单击 / 双击托盘图标都打开看板（单击更符合直觉）
+    def on_tray(reason):
+        print(f"[拾光] 托盘触发 reason={reason}", flush=True)
+        if reason in (QSystemTrayIcon.Trigger, QSystemTrayIcon.DoubleClick):
+            show_board()
+
+    tray.activated.connect(on_tray)
     tray.show()
 
     # 到期提醒（每分钟检查，托盘弹通知）
     reminder = Reminder(tray)  # 保持引用
 
-    tray.showMessage("拾光已就绪", "按 Ctrl+Shift+V 快速收纳 · 双击托盘打开看板",
+    tray.showMessage("拾光已就绪", "按 Ctrl+Shift+V 快速收纳 · 单击托盘图标打开看板",
                      QSystemTrayIcon.Information, 3000)
     print("[拾光] 看板内嵌窗口就绪（托盘双击/菜单打开）")
     print("[拾光] 到期提醒已启用（设置里可关）")
