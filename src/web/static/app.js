@@ -196,6 +196,14 @@ function editModal() {
     <div class="kv"><span>效用期</span><select id="e-period">${opts(c.period, PERIODS)}</select></div>
     <div class="kv"><span>截止日期</span><input id="e-due" type="date" value="${esc(c.due_date || "")}"></div>
     <div class="kv"><span>日历日期</span><input id="e-cal" type="date" value="${esc(c.cal_date || "")}"></div>
+    <div class="kv"><span>提醒</span><select id="e-remind">
+      <option value="" ${c.remind_days == null ? "selected" : ""}>跟随默认</option>
+      <option value="0" ${c.remind_days === 0 ? "selected" : ""}>到期当天</option>
+      <option value="1" ${c.remind_days === 1 ? "selected" : ""}>提前1天</option>
+      <option value="3" ${c.remind_days === 3 ? "selected" : ""}>提前3天</option>
+      <option value="7" ${c.remind_days === 7 ? "selected" : ""}>提前7天</option>
+      <option value="-1" ${c.remind_days === -1 ? "selected" : ""}>不提醒</option>
+    </select></div>
     <div class="kv"><span>备注</span><textarea id="e-note" rows="3">${esc(c.note || "")}</textarea></div>
     <div class="edit-actions">
       <button id="e-save">💾 保存修改</button>
@@ -214,6 +222,7 @@ async function saveEdit() {
     period: $("e-period").value,
     due_date: $("e-due").value || null,
     cal_date: $("e-cal").value || null,
+    remind_days: $("e-remind").value === "" ? null : parseInt($("e-remind").value, 10),
     note: $("e-note").value.trim() || null,
   };
   const r = await fetch(`/api/cards/${c.id}`, {
@@ -254,6 +263,7 @@ function openModal(id) {
     <div class="kv"><span>效用期</span><span>${esc(c.period)}</span></div>
     <div class="kv"><span>截止</span><span>${esc(c.due_date || "无")}（${dueTxt}）</span></div>
     ${c.cal_date ? `<div class="kv"><span>日历</span><span>📌 ${esc(c.cal_date)}</span></div>` : ""}
+    ${c.remind_days != null ? `<div class="kv"><span>提醒</span><span>${c.remind_days < 0 ? "不提醒" : `提前 ${c.remind_days} 天`}</span></div>` : ""}
     <div class="kv"><span>来源</span><span>${esc(c.source)}</span></div>
     <div class="kv"><span>创建</span><span>${esc(c.created_at)}</span></div>
     ${c.note ? `<div class="kv"><span>备注</span><span>${esc(c.note)}</span></div>` : ""}`;

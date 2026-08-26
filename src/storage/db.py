@@ -5,6 +5,7 @@
 - 线程安全（Qt 悬浮窗与 Flask 看板可能同时访问）
 - 聊天记录卡片额外存 main_point（主观点）+ branches（分支 JSON）
 """
+import json
 import os
 import re
 import sqlite3
@@ -50,6 +51,8 @@ def init_db():
                     period TEXT DEFAULT '永久参考',
                     due_date TEXT,                           -- YYYY-MM-DD 截止日期
                     cal_date TEXT,                           -- YYYY-MM-DD 手动日历日期
+                    remind_days INTEGER,                     -- 提醒提前天数：null=跟随全局, -1=不提醒
+                    last_remind TEXT,                        -- 上次提醒日期 YYYY-MM-DD（防重复）
                     status TEXT DEFAULT '待处理',
                     ocr_text TEXT,                           -- 图片 OCR 结果
                     note TEXT,
@@ -62,7 +65,7 @@ def init_db():
             )
             # 兼容旧表：补齐新增列
             cols = [r[1] for r in conn.execute("PRAGMA table_info(cards)")]
-            for col in ("tags", "main_point", "branches", "cal_date"):
+            for col in ("tags", "main_point", "branches", "cal_date", "remind_days", "last_remind"):
                 if col not in cols:
                     conn.execute(f"ALTER TABLE cards ADD COLUMN {col} TEXT")
             for col in ("topic", "priority", "status", "due_date"):
@@ -95,19 +98,20 @@ def media_abs_path(rel_path):
 def create_card(kind="text", content="", media_path=None, source="手动",
                 topic="其他", priority="中", period="永久参考",
                 due_date=None, cal_date=None, status="待处理", ocr_text=None,
-                note=None, tags=None, main_point=None, branches=None):
+                note=None, tags=None, main_point=None, branches=None,
+                remind_days=None, last_remind=None):
     with _lock:
         conn = _conn()
         try:
             now = _now()
             cur = conn.execute(
                 """INSERT INTO cards (kind, content, media_path, source, topic,
-                   priority, period, due_date, cal_date, status, ocr_text, note, tags,
-                   main_point, branches, created_at, updated_at)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                   priority, period, due_date, cal_date, remind_days, last_remind,
+                   status, ocr_text, note, tags, main_point, branches, created_at, updated_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (kind, content, media_path, source, topic, priority,
-                 period, due_date, cal_date, status, ocr_text, note, tags,
-                 main_point, branches, now, now),
+                 period, due_date, cal_date, remind_days, last_remind,
+                 status, ocr_text, note, tags, main_point, branches, now, now),
             )
             conn.commit()
             return cur.lastrowid
@@ -155,7 +159,7 @@ def update_card(card_id, **fields):
     """更新指定字段（白名单），返回是否成功"""
     allowed = {"content", "source", "topic", "priority", "period",
                "due_date", "cal_date", "status", "ocr_text", "note", "tags",
-               "main_point", "branches"}
+               "main_point", "branches", "remind_days", "last_remind"}
     keys = [k for k in fields if k in allowed]
     if not keys:
         return False
@@ -210,6 +214,28 @@ def get_topics():
             conn.close()
     custom = [r["topic"] for r in rows if r["topic"] not in TOPICS]
     return TOPICS + custom
+
+
+SETTINGS_PATH = os.path.join(DATA_DIR, "settings.json")
+DEFAULT_SETTINGS = {"remind_enabled": True, "remind_days": 1}
+
+
+def load_settings():
+    """读取全局设置（提醒开关 + 默认提前天数）"""
+    s = dict(DEFAULT_SETTINGS)
+    if os.path.exists(SETTINGS_PATH):
+        try:
+            with open(SETTINGS_PATH, encoding="utf-8") as f:
+                s.update(json.load(f))
+        except (json.JSONDecodeError, OSError):
+            pass
+    return s
+
+
+def save_settings(settings):
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(SETTINGS_PATH, "w", encoding="utf-8") as f:
+        json.dump(settings, f, ensure_ascii=False, indent=2)
 
 
 def parse_due(text, now=None):
