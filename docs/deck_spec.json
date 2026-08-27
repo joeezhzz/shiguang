@@ -1,0 +1,154 @@
+{
+  "slide_size": "16:9",
+  "slides": [
+    {
+      "layout": "title",
+      "title": "拾光 · Shiguang",
+      "subtitle": "Windows 桌面信息收纳工具\n\n将微信里觉得重要但又杂乱的信息，一键收集整合，AI 帮你整理好",
+      "background": "F7F5F1",
+      "shapes": [
+        {"type": "rectangle", "left": 5.67, "top": 2.4, "width": 2.0, "height": 0.06, "fill": "C68A3C"}
+      ]
+    },
+    {
+      "layout": "title_content",
+      "title": "为什么做这个项目",
+      "bullets": [
+        "日常把重要的东西随手存进微信：学习方法、考研保研、竞赛通知、生活妙招…",
+        {"text": "时间一长：主题混杂、时效不一、想找的时候翻半天", "color": "C68A3C", "bold": true},
+        {"text": "痛点：信息「存了等于没存」", "bold": true, "size": 24},
+        "拾光的思路：让「收藏」变成「整理」，让重要信息找得到、看得见、不遗忘"
+      ]
+    },
+    {
+      "layout": "title_content",
+      "title": "拾光是什么",
+      "bullets": [
+        "一款 Windows 桌面信息收纳软件：托盘常驻 + 悬浮窗 + 内嵌看板",
+        "全局热键 Ctrl+Shift+V，任何场景一键收纳（不只微信）",
+        "AI 自动分类整理，看板 + 日历双视图查阅，到期自动提醒",
+        {"text": "数据 100% 本地，隐私安全", "bold": true}
+      ]
+    },
+    {
+      "layout": "title_content",
+      "title": "核心亮点",
+      "bullets": [
+        {"text": "① 悬浮窗 + 全局热键", "bold": true, "color": "2B2D42"},
+        "Ctrl+Shift+V 随时唤出，微信 / 网页 / 文档 / 截图都能一键收纳",
+        {"text": "② AI 整理 + 三层保障", "bold": true, "color": "2B2D42"},
+        "原文 100% 保留 + 保存前预览确认 + 详情页可编辑，信息零丢失",
+        {"text": "③ 看板 + 日历 + 到期提醒", "bold": true, "color": "2B2D42"},
+        "双视图查阅，到期弹 Windows 原生通知，重要信息不遗忘",
+        {"text": "④ 全本地 + 可离线", "bold": true, "color": "2B2D42"},
+        "数据不出本机；断网时 AI 自动降级为规则分类，核心功能不受影响"
+      ]
+    },
+    {
+      "layout": "title_content",
+      "title": "使用流程：3 秒收纳",
+      "bullets": [
+        {"text": "① 复制 / 拖入内容", "bold": true},
+        "② Ctrl+Shift+V 唤出悬浮窗",
+        "③ Enter → AI 分析整理（主题 / 重要度 / 效用期 / 截止）",
+        "④ 预览确认（可修改）→ Enter 保存",
+        "⑤ 单击托盘图标打开看板，查看 / 编辑 / 检索"
+      ]
+    },
+    {
+      "layout": "title_content",
+      "title": "AI 自动分类",
+      "bullets": [
+        {"text": "主题", "bold": true, "color": "C68A3C"},
+        "6 大类 + 自定义，自动收集新主题",
+        {"text": "重要度 / 效用期", "bold": true, "color": "C68A3C"},
+        "重要度：高 / 中 / 低；效用期：短期 / 长期 / 永久",
+        {"text": "截止日期", "bold": true, "color": "C68A3C"},
+        "自动识别时间，到期弹提醒",
+        {"text": "聊天记录结构化", "bold": true, "color": "C68A3C"},
+        "识别多轮对话，提炼「主观点」+「分支」，原文 100% 保留",
+        {"text": "公众号链接", "bold": true, "color": "C68A3C"},
+        "自动提取文章标题作为卡片标题"
+      ]
+    },
+    {
+      "layout": "title_only",
+      "title": "技术架构",
+      "tables": [
+        {"left": 1.2, "top": 1.6, "width": 10.9, "height": 4.6,
+         "rows": [
+           ["层", "技术"],
+           ["语言", "Python 3.13"],
+           ["桌面 GUI", "PySide6（托盘 + 悬浮窗 + QtWebEngine 内嵌看板）"],
+           ["本地服务", "Flask（仅本机 127.0.0.1）"],
+           ["看板前端", "原生 HTML / CSS / JS + Canvas 动画"],
+           ["数据存储", "SQLite + 文件库（全本地）"],
+           ["AI 分类", "DeepSeek API（断网自动降级为规则分类）"]
+         ]}
+      ]
+    },
+    {
+      "layout": "title_content",
+      "title": "项目结构",
+      "bullets": [
+        {"text": "src/", "bold": true, "color": "2B2D42"},
+        "main.py（托盘 + 热键 + 悬浮窗 + 看板）· reminder.py（提醒）· storage/db.py（数据层）",
+        "classifier/classifier.py（AI 分类 + 降级）· collector/floatwindow.py（悬浮窗）· web/（Flask + 前端）",
+        {"text": "tests/", "bold": true, "color": "2B2D42"},
+        "4 套测试，58 项，全部隔离临时库",
+        {"text": "docs/", "bold": true, "color": "2B2D42"},
+        "规划 PLAN.md · UI 设计方案 · devlog/ 开发日志（5 篇排障记录）"
+      ]
+    },
+    {
+      "layout": "title_only",
+      "title": "开发中的难点与解决（真实排障）",
+      "tables": [
+        {"left": 0.8, "top": 1.6, "width": 11.7, "height": 4.8,
+         "rows": [
+           ["问题", "解决"],
+           ["全局热键 RegisterHotKey 不派发 WM_HOTKEY", "改用 GetAsyncKeyState 轮询"],
+           ["微信复制聊天记录不带昵称", "消息流特征识别 + AI 语义判断问答"],
+           ["旧库 TEXT 列与整数比较崩溃", "读取一律 int() 强转 + 兼容测试"],
+           ["测试污染真实用户数据", "测试全部隔离到临时库"],
+           ["后台窗口被 Windows 前台锁定", "原生 API 强制置顶"]
+         ]}
+      ]
+    },
+    {
+      "layout": "title_content",
+      "title": "工程质量",
+      "bullets": [
+        {"text": "58 项自动化测试全绿", "bold": true},
+        "核心存储 / 聊天记录整理 / 悬浮窗全流程 / 到期提醒，4 套测试全部隔离临时库",
+        {"text": "开发日志", "bold": true},
+        "按天记录技术验证与排障全过程，是「主动分析并解决问题」的直接证据",
+        {"text": "AI 优先 + 规则降级", "bold": true},
+        "断网 / 失败时自动降级，功能不瘫",
+        {"text": "隐私设计", "bold": true},
+        "平时不读剪贴板，仅按需读取；数据全部本地",
+        {"text": "Git 全程提交", "bold": true},
+        "每项功能独立 commit，可回溯"
+      ]
+    },
+    {
+      "layout": "title_content",
+      "title": "未来规划",
+      "bullets": [
+        "打包为免安装 exe（任何人双击即用，无需装 Python）",
+        "AI 每周信息回顾（自动总结本周收纳的内容）",
+        "移动端入口（微信转发即可收纳）",
+        "数据导出 / 备份一键化"
+      ]
+    },
+    {
+      "layout": "title",
+      "title": "谢谢观看",
+      "subtitle": "拾光 · 把散落的信息，收成看得见的时光 ✨\n\nGitHub：https://github.com/joeezhzz/shiguang",
+      "background": "F7F5F1",
+      "shapes": [
+        {"type": "rectangle", "left": 5.67, "top": 2.4, "width": 2.0, "height": 0.06, "fill": "C68A3C"}
+      ]
+    }
+  ]
+}
